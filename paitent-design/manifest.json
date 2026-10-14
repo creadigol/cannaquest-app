@@ -1,0 +1,44 @@
+{
+  "name": "CannaQuest Patient Portal",
+  "short_name": "CannaQuest",
+  "description": "Patient portal for consultations, prescriptions, and medical care refills.",
+  "start_url": "/",
+  "scope": "/",
+  "id": "/",
+  "display": "standalone",
+  "background_color": "#f8f7f2",
+  "theme_color": "#0e3017",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/app-logo.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/app-logo.png",
+      "sizes": "1254x1254",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["medical", "health", "lifestyle"],
+  "shortcuts": [
+    {
+      "name": "My Scripts",
+      "url": "/#scripts",
+      "description": "View prescriptions and request refills"
+    },
+    {
+      "name": "Consultations",
+      "url": "/#consults",
+      "description": "Book or join your next doctor consultation"
+    },
+    {
+      "name": "Products",
+      "url": "/#products",
+      "description": "Browse prescribed medications"
+    }
+  ]
+}
