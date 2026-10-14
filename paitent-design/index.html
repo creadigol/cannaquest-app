@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>CannaQuest Patient Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="description" content="Official CannaQuest Patient Portal for telehealth, prescriptions, and refills.">
+  
+  <!-- PWA & Apple Web App Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="CannaQuest">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#0e3017">
+  <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate, max-age=0">
+  <meta http-equiv="Pragma" content="no-cache">
+  
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/png" href="./app-logo.png">
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+  <link rel="apple-touch-icon" sizes="180x180" href="./app-logo.png?v=3">
+
+  <!-- Manrope Font & Tailwind CSS -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Patient App Custom CSS Reference -->
+  <link rel="stylesheet" href="./css/patient-app.css?v=35">
+</head>
+<body class="patient-app">
+
+  <!-- ── 3-SECOND MOTION SPLASH SCREEN ── -->
+  <div id="app-splash-screen" class="splash-screen">
+    <div class="splash-orb splash-orb-one"></div>
+    <div class="splash-orb splash-orb-two"></div>
+    <!-- Center Hero Branding with motions -->
+    <div class="flex flex-col items-center text-center space-y-3 my-auto">
+      <div class="splash-logo-card splash-mark">
+        <img src="./splash-logo.png" alt="CannaQuest" class="splash-logo-image w-full h-full object-contain">
+      </div>
+
+      <div class="-mt-2">
+        <h1 class="text-xl font-extrabold tracking-[0.08em] text-white leading-tight">Care made simple.</h1>
+        <p class="text-[11px] text-white/75 mt-1.5 font-normal leading-relaxed">Your care, all in one place.</p>
+      </div>
+    </div>
+
+    <!-- Bottom Progress Loader -->
+    <div class="w-full max-w-[240px] space-y-2 text-center">
+      <div class="w-full h-1.5 rounded-full bg-white/15 overflow-hidden">
+        <div class="splash-bar-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="app-install-gate" class="app-install-gate hidden" style="display:none !important" role="dialog" aria-modal="true" aria-labelledby="install-gate-title">
+    <div class="app-install-gate-card">
+      <div class="app-install-gate-logo"><img src="./app-logo.png?v=2" alt="CannaQuest logo"></div>
+      <p class="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-700">Mobile testing</p>
+      <h1 id="install-gate-title" class="text-xl font-extrabold text-[#0e3017] mt-2">Download the CannaQuest app</h1>
+      <p class="text-sm text-muted-foreground leading-relaxed mt-2">To test the patient portal, please download the app and continue testing in the mobile app.</p>
+      <button id="install-gate-action" onclick="window.app.triggerPwaInstall()" class="btn-lime w-full py-3 rounded-xl text-sm font-bold mt-5">Download app</button>
+      <div id="ios-install-guide" class="ios-install-guide hidden" aria-live="polite">
+        <div class="ios-install-guide-title"><span class="ios-share-symbol">↑</span> Install on iPhone or iPad</div>
+        <p class="text-xs text-muted-foreground mt-2">In Safari, use the Share menu to add CannaQuest to your Home Screen.</p>
+        <ol class="ios-install-steps">
+          <li><span>1</span><b>Tap the Share icon</b><small>It is the square with the upward arrow in Safari.</small></li>
+          <li><span>2</span><b>Choose “Add to Home Screen”</b><small>Scroll the Share sheet if you do not see it.</small></li>
+          <li><span>3</span><b>Tap “Add”</b><small>Open CannaQuest from your Home Screen to continue testing.</small></li>
+        </ol>
+        <button onclick="window.app.openIosShareMenu()" class="btn-glass-outline w-full py-2.5 rounded-xl text-xs font-bold mt-3">Open Share menu</button>
+      </div>
+      <p class="text-[10px] text-muted-foreground/80 text-center mt-3">The web preview is disabled for this testing session.</p>
+    </div>
+  </div>
+
+  <!-- Toast Notification System -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ── ROOT MOBILE APP CONTAINER ── -->
+  <div class="app-container">
+
+    <!-- ── AUTHENTICATION SCREEN (LOGIN & SIGN UP) ── -->
+    <div id="auth-screen" class="absolute inset-0 z-50 bg-[#f8f7f2] flex flex-col justify-between overflow-y-auto no-scrollbar" style="touch-action: pan-y;">
+      <div class="p-6 space-y-5">
+        <!-- Logo Header -->
+        <div class="flex items-center justify-between pt-2">
+          <div class="flex items-center gap-2.5">
+            <div class="w-9 h-9 rounded-xl overflow-hidden shadow-sm">
+              <img src="./app-logo.png?v=2" alt="CannaQuest logo" class="w-full h-full object-cover">
+            </div>
+            <div>
+              <span class="text-xs font-bold uppercase tracking-wider text-[#0e3017] block leading-none">CannaQuest</span>
+              <span class="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">Patient Portal</span>
+            </div>
+          </div>
+          <span class="hero-confirmed-pill text-[9px] font-bold px-2 py-0.5 rounded-full text-[#0e3017]">
+            🔒 HIPAA & TGA
+          </span>
+        </div>
+
+        <div id="auth-install-banner" style="display:none;" class="surface-card rounded-2xl p-3 flex items-center justify-between gap-3 border border-emerald-500/30 bg-emerald-50/80">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-8 h-8 rounded-xl bg-[#0e3017] flex items-center justify-center shrink-0 overflow-hidden">
+              <img src="./app-logo.png?v=2" alt="" class="w-full h-full object-cover">
+            </div>
+            <div class="min-w-0">
+              <p class="text-xs font-bold text-emerald-950">Install CannaQuest App</p>
+              <p class="text-[10px] text-emerald-800 truncate">Keep your care portal one tap away.</p>
+            </div>
+          </div>
+          <button onclick="window.app.triggerPwaInstall()" class="btn-lime px-3 py-1.5 rounded-xl text-xs font-bold shrink-0">Install</button>
+        </div>
+
+        <div>
+          <h2 class="text-2xl font-extrabold text-[#0e3017]">Welcome Back</h2>
+          <p class="text-xs text-muted-foreground mt-1">Sign in to access your prescriptions, telehealth appointments, and treatment plans.</p>
+        </div>
+
+        <!-- Auth Tabs: Sign In / Sign Up -->
+        <div class="flex rounded-xl bg-black/5 p-1 text-xs font-bold">
+          <button id="auth-tab-signin" onclick="window.app.switchAuthTab('signin')" class="flex-1 py-2 rounded-lg bg-white text-[#0e3017] shadow-sm transition-all">
+            Sign In
+          </button>
+          <button id="auth-tab-signup" onclick="window.app.switchAuthTab('signup')" class="flex-1 py-2 rounded-lg text-muted-foreground hover:text-[#0e3017] transition-all">
+            New Patient Sign Up
+          </button>
+        </div>
+
+        <!-- 1. Sign In Form -->
+        <form id="form-signin" novalidate onsubmit="window.app.handleLoginSubmit(event)" class="space-y-3.5">
+          <div>
+            <label class="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Email Address</label>
+            <input id="login-email" type="text" value="sarah.walker@patient.cannaquest.com.au" class="auth-input">
+          </div>
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="text-[10px] font-bold uppercase text-muted-foreground">Password</label>
+            </div>
+            <input id="login-password" type="password" value="password123" class="auth-input">
+            <button type="button" onclick="window.app.openPasswordResetScreen()" class="text-[10px] text-emerald-800 font-bold mt-1">Forgot password?</button>
+          </div>
+
+          <div class="flex items-center gap-2 text-xs text-muted-foreground pt-0.5">
+            <input type="checkbox" id="remember-me" checked class="accent-[#0e3017] rounded">
+            <label for="remember-me" class="cursor-pointer">Remember my login</label>
+          </div>
+
+          <button type="submit" class="btn-primary-green w-full py-3 rounded-xl text-xs font-bold shadow-md mt-2">
+            Sign In to Portal
+          </button>
+
+          <!-- 1-Click Demo Shortcut -->
+          <button type="button" onclick="window.app.quickDemoLogin()" class="btn-lime w-full py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center justify-center gap-1.5">
+            <span>⚡ Demo 1-Click Login (Sarah Walker)</span>
+          </button>
+        </form>
+
+        <!-- 2. Sign Up Form -->
+        <form id="form-signup" novalidate onsubmit="window.app.handleSignupSubmit(event)" class="space-y-3 hidden">
+          <div class="grid grid-cols-2 gap-2">
+            <div>
+              <label class="text-[10px] font-bold uppercase text-muted-foreground block mb-1">First Name</label>
+              <input id="signup-fname" type="text" placeholder="Sarah" class="auth-input">
+            </div>
+            <div>
+              <label class="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Last Name</label>
+              <input id="signup-lname" type="text" placeholder="Walker" class="auth-input">
+            </div>
+          </div>
+          <div>
+            <label class="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Email Address</label>
+            <input id="signup-email" type="text" placeholder="sarah@example.com" class="auth-input">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Mobile Phone (Australia)</label>
+            <input id="signup-phone" type="tel" placeholder="0412 345 678" class="auth-input">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Medicare Card Number (Optional)</label>
+            <input id="signup-medicare" type="text" placeholder="2345 67890 1" class="auth-input">
+          </div>
+          <div>
+            <label class="text-[10px] font-bold uppercase text-muted-foreground block mb-1">Create Password</label>
+            <input id="signup-password" type="password" placeholder="At least 8 characters" class="auth-input">
+          </div>
+
+          <div class="flex items-start gap-2 text-[11px] text-muted-foreground pt-1">
+            <input type="checkbox" id="terms-agree" checked required class="accent-[#0e3017] mt-0.5">
+            <label for="terms-agree">I agree to clinical telehealth terms and consent to clinical assessment.</label>
+          </div>
+
+          <button type="submit" class="btn-primary-green w-full py-3 rounded-xl text-xs font-bold shadow-md mt-2">
+            Create Patient Account
+          </button>
+        </form>
+      </div>
+
+      <!-- Footer Info -->
+      <div class="p-6 text-center border-t border-black/5 text-[11px] text-muted-foreground">
+        Need assistance? Call our nurse line: <span class="font-bold text-[#0e3017]">1300 892 110</span>
+      </div>
+    </div>
+    
+    <!-- ── TOP MOBILE APP HEADER ── -->
+    <div id="email-code-modal" class="modal-backdrop hidden auth-code-backdrop" role="dialog" aria-modal="true" aria-labelledby="email-code-title">
+      <div class="auth-code-card">
+        <div class="auth-code-logo"><img src="./app-logo.png?v=2" alt="CannaQuest logo"></div>
+        <p class="text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-700">Email sent</p>
+        <h3 id="email-code-title" class="text-lg font-extrabold text-[#0e3017] mt-2">Check your email</h3>
+        <p class="text-xs text-muted-foreground leading-relaxed mt-2">We sent a verification code to <span id="email-code-recipient" class="font-bold text-[#0e3017]">your email</span>.</p>
+        <input id="email-code-input" inputmode="numeric" maxlength="6" placeholder="Enter code" autocomplete="one-time-code" class="auth-input text-center tracking-[0.5em] mt-4">
+        <button onclick="window.app.confirmEmailCode()" class="btn-primary-green w-full py-3 rounded-xl text-xs font-bold mt-3">Continue</button>
+        <button onclick="window.app.confirmEmailCode()" class="text-[11px] font-bold text-emerald-800 mt-3">Continue for demo</button>
+        <button onclick="window.app.closeEmailCodeModal()" class="text-[11px] text-muted-foreground mt-4">Back</button>
+      </div>
+    </div>
+
+    <div id="password-reset-screen" class="password-reset-screen hidden" role="dialog" aria-modal="true" aria-labelledby="password-reset-title">
+      <div class="password-reset-header">
+        <button type="button" onclick="window.app.closePasswordResetScreen()" class="password-reset-back" aria-label="Back">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+          <span>Back</span>
+        </button>
+        <h2 id="password-reset-title" class="text-sm font-bold text-foreground">Reset password</h2>
+      </div>
+      <div class="password-reset-content">
+        <div class="auth-code-logo"><img src="./app-logo.png?v=2" alt="CannaQuest logo"></div>
+        <h3 class="text-xl font-extrabold text-[#0e3017]">Forgot password?</h3>
+        <p class="text-sm text-muted-foreground leading-relaxed mt-2">Please add your email to get the reset password link.</p>
+        <form onsubmit="window.app.requestPasswordReset(event)" class="mt-5 space-y-3">
+          <label class="text-[10px] font-bold uppercase text-muted-foreground block text-left">Email address</label>
+          <input id="reset-email-input" type="text" class="auth-input" placeholder="Enter your email" required>
+          <button type="submit" class="btn-primary-green w-full py-3 rounded-xl text-xs font-bold">Send reset link</button>
+        </form>
+      </div>
+    </div>
+
+    <header class="flex-shrink-0 px-4 py-3 bg-white/70 backdrop-blur-md border-b border-white/60 flex items-center justify-between z-40">
+      <div class="flex items-center gap-2.5">
+        <!-- CannaQuest Emblem Mark -->
+        <div class="w-8 h-8 rounded-xl overflow-hidden shadow-sm">
+          <img src="./app-logo.png?v=2" alt="CannaQuest logo" class="w-full h-full object-cover">
+        </div>
+        <div>
+          <span class="text-xs font-bold uppercase tracking-wider text-[#0e3017] block leading-none">CannaQuest</span>
+          <span class="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider">Patient Portal</span>
+        </div>
+      </div>
+
+      <div class="flex items-center ml-auto">
+        <!-- Notification Bell Icon (Replaces Download Icon) -->
+        <button id="header-notif-btn" onclick="window.app.openNotificationDrawer()" class="hidden glass-icon-btn w-9 h-9 rounded-xl flex items-center justify-center relative shadow-sm" aria-label="Notifications" title="Notifications">
+          <svg class="w-4 h-4 text-[#0e3017]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          <span id="header-notif-badge" class="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-emerald-600 ring-2 ring-white"></span>
+        </button>
+
+        <!-- Cart Button -->
+        <button onclick="window.app.openCartModal()" class="header-cart-button glass-icon-btn rounded-xl flex items-center justify-center relative shadow-sm" aria-label="Open Cart" title="Shopping Cart">
+          <svg class="w-5 h-5 text-[#0e3017]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+          <span id="header-cart-badge" style="display:none;" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-[#0e3017] text-[#d2ffa0] text-[9px] font-extrabold flex items-center justify-center shadow-sm">
+            0
+          </span>
+        </button>
+      </div>
+    </header>
+
+    <!-- PWA Install Banner -->
+    <div id="pwa-install-banner" style="display:none;" class="mx-3 mt-2 surface-card rounded-2xl p-3 flex items-center justify-between border border-emerald-500/30 bg-emerald-50/80 shrink-0">
+      <div class="flex items-center gap-2.5">
+        <div class="w-8 h-8 rounded-xl bg-[#0e3017] text-[#d2ffa0] flex items-center justify-center font-bold text-xs">
+          CQ
+        </div>
+        <div>
+          <p class="text-xs font-bold text-emerald-950">Install CannaQuest App</p>
+          <p class="text-[10px] text-emerald-800">Tap to add to your home screen.</p>
+        </div>
+      </div>
+      <button onclick="window.app.triggerPwaInstall()" class="btn-lime px-3 py-1.5 rounded-xl text-xs font-bold">
+        Install
+      </button>
+    </div>
+
+    <!-- ── MAIN CONTENT SCROLL AREA (Dedicated inner touch-scroll) ── -->
+    <main class="app-content">
+      <!-- 1. Home Screen -->
+      <section id="tab-home" class="tab-screen"></section>
+
+      <!-- 2. Consultations Screen -->
+      <section id="tab-consults" class="tab-screen hidden"></section>
+
+      <!-- 3. Prescriptions Screen -->
+      <section id="tab-scripts" class="tab-screen hidden"></section>
+
+      <!-- 4. Products Screen -->
+      <section id="tab-products" class="tab-screen hidden"></section>
+
+      <!-- 5. Profile Screen -->
+      <section id="tab-profile" class="tab-screen hidden"></section>
+    </main>
+
+    <!-- Floating Action Cart FAB (Mobile) -->
+    <button id="floating-cart-fab" style="display:none;" onclick="window.app.openCartModal()" class="floating-cart-fab">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg>
+      <span>Cart (0)</span>
+    </button>
+
+    <!-- ── FIXED MOBILE BOTTOM NAVIGATION BAR ── -->
+    <nav class="mobile-bottom-nav">
+      <div class="mobile-bottom-nav-inner">
+        <!-- Home Tab -->
+        <button class="nav-tab-btn active" data-tab="home" aria-label="Home">
+          <span class="nav-tab-icon">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/></svg>
+          </span>
+          <span class="nav-tab-label">Home</span>
+        </button>
+
+        <!-- Consults Tab -->
+        <button class="nav-tab-btn" data-tab="consults" aria-label="Consults">
+          <span class="nav-tab-icon">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          </span>
+          <span class="nav-tab-label">Consults</span>
+        </button>
+
+        <!-- Scripts Tab (Capsule icon from blade export) -->
+        <button class="nav-tab-btn" data-tab="scripts" aria-label="Scripts">
+          <span class="nav-tab-icon">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="5" y="3.5" width="14" height="17" rx="2.5" />
+              <path d="M9 8.5h6M9 12h3" />
+              <path d="M15.5 15.5v4M13.5 17.5h4" />
+            </svg>
+          </span>
+          <span class="nav-tab-label">Scripts</span>
+        </button>
+
+        <!-- Products Tab (Package/box icon from blade export) -->
+        <button class="nav-tab-btn" data-tab="products" aria-label="Products">
+          <span class="nav-tab-icon">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M3 8l9-5 9 5v8l-9 5-9-5V8z" />
+              <path d="M12 3v10" />
+              <path d="M3 8l9 5 9-5" />
+            </svg>
+          </span>
+          <span class="nav-tab-label">Products</span>
+        </button>
+
+        <!-- Profile Tab -->
+        <button class="nav-tab-btn" data-tab="profile" aria-label="Profile">
+          <span class="nav-tab-icon">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+          </span>
+          <span class="nav-tab-label">Profile</span>
+        </button>
+      </div>
+    </nav>
+  </div>
+
+  <!-- Full-screen profile detail views -->
+  <div id="profile-detail-screen" class="profile-detail-screen hidden">
+    <div class="profile-detail-header">
+      <button onclick="window.app.closeProfileDetail()" class="profile-detail-back" aria-label="Back">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+        <span>Back</span>
+      </button>
+      <h2 id="profile-detail-title" class="text-sm font-bold text-foreground">Details</h2>
+      <span class="w-14"></span>
+    </div>
+    <div id="profile-detail-content" class="profile-detail-content"></div>
+  </div>
+
+  <div id="password-reset-modal" class="modal-backdrop hidden password-reset-backdrop" onclick="if(event.target === this) window.app.closePasswordResetModal();">
+    <div class="password-reset-sheet rounded-2xl p-5">
+      <h3 class="text-base font-bold text-foreground">Change Password</h3>
+      <p class="text-xs text-muted-foreground leading-relaxed mt-1.5">We'll send a password reset link to your email address. You'll be able to set a new password from that link.</p>
+      <div class="flex items-center gap-2 text-xs font-semibold text-foreground mt-3">
+        <svg class="w-4 h-4 text-emerald-800" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16v12H4zM4 7l8 6 8-6"/></svg>
+        <span id="password-reset-email"></span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 mt-4">
+        <button onclick="window.app.closePasswordResetModal()" class="btn-glass-outline py-2.5 rounded-xl text-xs font-semibold">Cancel</button>
+        <button onclick="window.app.confirmPasswordReset()" class="btn-lime py-2.5 rounded-xl text-xs font-bold">Send Reset Link</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MODALS & SHEETS ── -->
+
+  <!-- 1. Cart & Multi-Step Checkout Modal -->
+  <div id="cart-modal" class="modal-backdrop hidden" onclick="if(event.target === this) window.app.closeCartModal();">
+    <div class="modal-sheet cart-modal-fullscreen">
+      <div class="px-5 py-4 border-b border-black/5 flex items-center justify-between bg-white/70">
+        <h3 class="text-sm font-bold text-foreground">Your Prescription Cart</h3>
+        <button onclick="window.app.closeCartModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-black/5">✕</button>
+      </div>
+      <div id="cart-modal-content" class="overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- 2. Notifications Center Drawer Sheet -->
+  <div id="notification-modal" class="notification-screen hidden">
+    <div class="notification-screen-panel">
+      <div class="px-5 py-4 border-b border-black/5 flex items-center justify-between bg-white/70">
+        <div class="flex items-center gap-2">
+          <h3 class="text-sm font-bold text-foreground">Clinical Notifications</h3>
+          <span class="w-2 h-2 rounded-full bg-emerald-600"></span>
+        </div>
+        <button onclick="window.app.closeNotificationDrawer()" class="notification-back-btn" aria-label="Back to portal">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+          <span>Back</span>
+        </button>
+      </div>
+      <div id="notification-modal-content" class="notification-screen-content space-y-2.5"></div>
+    </div>
+  </div>
+
+  <!-- 3. Live Telehealth Video Call Session Modal -->
+  <div id="telehealth-modal" class="fixed inset-0 z-[120] bg-black hidden flex flex-col">
+    <!-- Top Call Bar -->
+    <div class="px-4 py-3 bg-black/60 text-white flex items-center justify-between z-10">
+      <div class="flex items-center gap-2">
+        <div class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></div>
+        <span class="text-xs font-bold">Telehealth Video Consult</span>
+      </div>
+      <span id="telehealth-timer" class="text-xs font-mono font-bold bg-white/20 px-2 py-0.5 rounded-full">00:00</span>
+    </div>
+
+    <!-- Doctor Video Stream Mockup -->
+    <div class="flex-1 relative flex items-center justify-center overflow-hidden bg-slate-900">
+      <!-- Simulated Doctor Feed with ambient lighting -->
+      <div class="text-center text-white/90 p-6 z-10">
+        <div class="w-24 h-24 rounded-full bg-emerald-900 border-4 border-[#d2ffa0] mx-auto flex items-center justify-center text-2xl font-bold shadow-2xl mb-3">
+          LV
+        </div>
+        <h3 class="text-lg font-bold">Dr. Lachlan Vance</h3>
+        <p class="text-xs text-[#d2ffa0] font-medium">Authorised Prescriber (TGA SAS-B)</p>
+        <p class="text-[11px] text-white/60 mt-2 max-w-xs mx-auto">"Hello Sarah! Reviewing your treatment outcomes and script refills for the month."</p>
+      </div>
+
+      <!-- Self Camera Picture-in-Picture -->
+      <div class="absolute top-4 right-4 w-24 h-32 rounded-2xl bg-slate-800 border-2 border-white/40 overflow-hidden shadow-xl flex items-center justify-center">
+        <span class="text-[10px] text-white font-bold">You (Sarah)</span>
+      </div>
+    </div>
+
+    <!-- Bottom Controls -->
+    <div class="p-6 bg-slate-950 flex items-center justify-center gap-4">
+      <button class="w-12 h-12 rounded-full bg-white/20 text-white flex items-center justify-center" title="Mute Mic">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+      </button>
+      <button onclick="window.app.closeTelehealthCall()" class="w-14 h-14 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg active:scale-95" title="End Call">
+        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.71l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+      </button>
+      <button class="w-12 h-12 rounded-full bg-white/20 text-white flex items-center justify-center" title="Toggle Camera">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- 4. Consultation Booking Wizard Modal -->
+  <div id="booking-modal" class="modal-backdrop booking-modal-backdrop hidden" onclick="if(event.target === this) window.app.closeBookingModal();">
+    <div class="modal-sheet booking-modal-sheet">
+      <div class="px-5 py-4 border-b border-black/5 flex items-center justify-between bg-white/70">
+        <h3 class="text-sm font-bold text-foreground">Book Consultation</h3>
+        <button onclick="window.app.closeBookingModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-black/5">✕</button>
+      </div>
+      <div id="booking-modal-content" class="overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- 5. Consumption Calendar Modal -->
+  <div id="calendar-modal" class="modal-backdrop hidden" onclick="if(event.target === this) window.app.closeConsumptionCalendar();">
+    <div class="modal-sheet">
+      <div class="px-5 py-4 border-b border-black/5 flex items-center justify-between bg-white/70">
+        <h3 class="text-sm font-bold text-foreground">Consumption Calendar</h3>
+        <button onclick="window.app.closeConsumptionCalendar()" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-black/5">✕</button>
+      </div>
+      <div id="calendar-modal-content" class="overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- 6. Upload Prescription Modal -->
+  <div id="upload-modal" class="modal-backdrop hidden" onclick="if(event.target === this) window.app.closeUploadPrescriptionModal();">
+    <div class="modal-sheet">
+      <div class="px-5 py-4 border-b border-black/5 flex items-center justify-between bg-white/70">
+        <h3 class="text-sm font-bold text-foreground">Upload External Script</h3>
+        <button onclick="window.app.closeUploadPrescriptionModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-black/5">✕</button>
+      </div>
+      <form onsubmit="window.app.submitUploadedPrescription(event)" class="p-4 space-y-3">
+        <p class="text-xs text-muted-foreground">Upload an Australian prescription token or doctor's signed PDF.</p>
+        
+        <!-- File Dropzone -->
+        <label class="border-2 border-dashed border-gray-300 rounded-xl p-5 flex flex-col items-center justify-center cursor-pointer hover:border-emerald-600 bg-white/50 text-center">
+          <svg class="w-8 h-8 text-emerald-800 mb-1" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+          <span class="text-xs font-bold text-foreground">Click or Drag PDF / Image</span>
+          <span id="upload-file-name" class="text-[10px] text-muted-foreground mt-0.5">eRx tokens, PDF scripts, max 10MB</span>
+          <input id="upload-prescription-file" type="file" class="hidden" accept=".pdf,image/*" onchange="window.app.handlePrescriptionFile(event)">
+        </label>
+
+        <div>
+          <label class="text-[10px] font-bold uppercase text-muted-foreground">eRx Token (Optional)</label>
+          <input id="upload-erx-token" type="text" placeholder="e.g. eRx-9921-0021-AU" class="w-full mt-1 p-2 rounded-xl bg-white border border-gray-200 text-xs">
+        </div>
+
+        <button type="submit" class="btn-primary-green w-full py-2.5 rounded-xl text-xs font-bold mt-2">
+          Submit for Clinical Approval
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- 7. Product Details Sheet -->
+  <div id="product-modal" class="modal-backdrop hidden" onclick="if(event.target === this) window.app.closeProductModal();">
+    <div class="modal-sheet">
+      <div class="px-5 py-4 border-b border-black/5 flex items-center justify-between bg-white/70">
+        <h3 class="text-sm font-bold text-foreground">Medication Details</h3>
+        <button onclick="window.app.closeProductModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-black/5">✕</button>
+      </div>
+      <div id="product-modal-content" class="overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <div id="product-brochure-modal" class="modal-backdrop hidden brochure-backdrop" onclick="if(event.target === this) window.app.closeProductBrochure();">
+    <div class="brochure-sheet">
+      <div class="flex items-center justify-between border-b border-black/5 pb-3 mb-4">
+        <h3 class="text-sm font-bold text-foreground">Product brochure</h3>
+        <button onclick="window.app.closeProductBrochure()" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-black/5" aria-label="Close">✕</button>
+      </div>
+      <div id="product-brochure-content"></div>
+    </div>
+  </div>
+
+  <div id="signature-modal" class="modal-backdrop hidden signature-backdrop" onclick="if(event.target === this) window.app.closeSignatureModal();">
+    <div class="signature-sheet">
+      <div class="flex items-center justify-between mb-3">
+        <h3 class="text-base font-bold text-foreground">My Signature</h3>
+        <button onclick="window.app.closeSignatureModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-black/5" aria-label="Close">✕</button>
+      </div>
+      <div class="signature-tabs">
+        <button id="signature-tab-draw" onclick="window.app.renderSignatureModal('draw')" class="chip chip-active">Draw</button>
+        <button id="signature-tab-type" onclick="window.app.renderSignatureModal('type')" class="chip">Type</button>
+        <button id="signature-tab-upload" onclick="window.app.renderSignatureModal('upload')" class="chip">Upload</button>
+      </div>
+      <div id="signature-modal-content"></div>
+    </div>
+  </div>
+
+  <!-- 8. Documents Modal -->
+  <div id="documents-modal" class="modal-backdrop hidden" onclick="if(event.target === this) window.app.closeDocumentsModal();">
+    <div class="modal-sheet">
+      <div class="px-5 py-4 border-b border-black/5 flex items-center justify-between bg-white/70">
+        <h3 class="text-sm font-bold text-foreground">My Documents</h3>
+        <button onclick="window.app.closeDocumentsModal()" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-black/5">✕</button>
+      </div>
+      <div id="documents-modal-content" class="overflow-y-auto"></div>
+    </div>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="./js/patient-data.js"></script>
+  <script src="./js/patient-app.js?v=43"></script>
+  <script>
+    // Local preview cleanup: remove stale service-worker caches so this build is always visible.
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+      if (navigator.serviceWorker) {
+        navigator.serviceWorker.getRegistrations().then(function (registrations) {
+          registrations.forEach(function (registration) { registration.unregister(); });
+        });
+      }
+      if (window.caches) {
+        caches.keys().then(function (keys) {
+          keys.forEach(function (key) { caches.delete(key); });
+        });
+      }
+    }
+
+    // Local preview flow: splash first, then always show authentication on each load.
+    window.addEventListener('DOMContentLoaded', function () {
+      window.setTimeout(function () {
+        var authScreen = document.getElementById('auth-screen');
+        var installGate = document.getElementById('app-install-gate');
+        if (installGate) installGate.classList.add('hidden');
+        if (authScreen) authScreen.classList.remove('hidden');
+      }, 3250);
+    });
+  </script>
+</body>
+</html>
