@@ -1,0 +1,93 @@
+# ==============================================================================
+# CANNAQUEST ROOT .GITIGNORE
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Dependencies & Package Managers
+# ------------------------------------------------------------------------------
+node_modules/
+vendor/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json.orig
+
+# ------------------------------------------------------------------------------
+# Environment Variables & Secrets (CRITICAL FOR GITHUB)
+# ------------------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+!.env.testing.example
+*.pem
+*.key
+*.cert
+*.jks
+*.p8
+*.p12
+*.keystore
+*.mobileprovision
+
+# ------------------------------------------------------------------------------
+# Local AI & OpenAI Dumps / Big JSON Logs
+# ------------------------------------------------------------------------------
+*-openai.json
+admin-openai.json
+commerce-openai.json
+patient-openai.json
+*.log
+logs/
+
+# ------------------------------------------------------------------------------
+# Backend Platform (Entire Private_Medi_Platform Directory Ignored)
+# ------------------------------------------------------------------------------
+Private_Medi_Platform/
+Private_Medi_Platform
+
+# ------------------------------------------------------------------------------
+# Frontend Mobile (patient-app / Expo / React Native)
+# ------------------------------------------------------------------------------
+patient-app/.expo/
+patient-app/dist/
+patient-app/web-build/
+patient-app/android/
+patient-app/ios/
+patient-app/.kotlin/
+patient-app/expo-env.d.ts
+patient-app/*.tsbuildinfo
+patient-app/.metro-health-check*
+patient-app/patch_commerce.js
+
+# ------------------------------------------------------------------------------
+# Design assets & Mockups (Large raw mockups not needed in git)
+# ------------------------------------------------------------------------------
+paitent-design/
+
+# ------------------------------------------------------------------------------
+# IDE, Editors & OS Files
+# ------------------------------------------------------------------------------
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.sublime-project
+*.sublime-workspace
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# ------------------------------------------------------------------------------
+# Temporary Files & Caches
+# ------------------------------------------------------------------------------
+tmp/
+temp/
+*.tmp
+*.temp

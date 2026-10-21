@@ -1,0 +1,54 @@
+# ==============================================================================
+# PATIENT-APP .GITIGNORE
+# ==============================================================================
+
+# Dependencies
+node_modules/
+
+# Environment Variables & Secrets (CRITICAL FOR GITHUB)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.jks
+*.p8
+*.p12
+*.keystore
+*.mobileprovision
+
+# Expo & Metro
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+.metro-health-check*
+
+# Generated Native Builds
+/ios
+/android
+.kotlin/
+*.orig.*
+
+# Logs & Debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.*
+*.log
+
+# TypeScript
+*.tsbuildinfo
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+ehthumbs.db
+.idea/
+.vscode/
+
+# Local scripts & temp
+patch_commerce.js
+example/
+tmp/
+temp/
