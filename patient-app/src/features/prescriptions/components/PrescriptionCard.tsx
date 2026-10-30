@@ -30,6 +30,7 @@ function getScriptImageSource(prescription: Prescription): any {
 
 type Props = {
   prescription: Prescription;
+  isInCart?: boolean;
   onAddToCart?: (prescriptionId: string) => void;
   onSelectPrescriber?: (prescription: Prescription) => void;
   onViewOrder?: (orderUuid: string) => void;
@@ -37,6 +38,7 @@ type Props = {
 
 export function PrescriptionCard({
   prescription,
+  isInCart = false,
   onAddToCart,
   onSelectPrescriber,
   onViewOrder,
@@ -189,7 +191,11 @@ export function PrescriptionCard({
             ) : null}
 
             {/* Main CTA */}
-            {prescription.canOrder ? (
+            {isInCart ? (
+              <View style={styles.inCartBadge}>
+                <Text style={styles.inCartText}>✓ In Cart</Text>
+              </View>
+            ) : prescription.canOrder ? (
               <Pressable
                 onPress={() => onAddToCart?.(prescription.id)}
                 style={({ pressed }) => [styles.orderBtn, pressed && styles.pressed]}
@@ -479,6 +485,23 @@ const styles = StyleSheet.create({
     fontFamily: typography.bold,
     fontSize: 12,
     fontWeight: '800',
+  },
+  inCartBadge: {
+    alignItems: 'center',
+    backgroundColor: '#f1f5f9',
+    borderColor: '#cbd5e1',
+    borderRadius: radii.md,
+    borderWidth: 1,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+  },
+  inCartText: {
+    color: '#64748b',
+    fontFamily: typography.bold,
+    fontSize: 12,
+    fontWeight: '700',
   },
   prescriberSelectBtn: {
     backgroundColor: '#3b82f6',

@@ -99,6 +99,7 @@ export interface OrderSummary {
     status?: string;
     payment_method?: 'card' | 'payid' | string;
     payid_reference?: string;
+    payid_expires_at?: string | null;
     shipping_summary?: string | null;
     tracking_url?: string | null;
     is_active?: boolean;
@@ -136,4 +137,5 @@ export interface OrderDetail extends OrderSummary {
     can_pay?: boolean;
     breakdown?: OrderPricingBreakdown;
     payid_settings?: PayIdDetails;
+    payid_expires_at?: string | null;
 }

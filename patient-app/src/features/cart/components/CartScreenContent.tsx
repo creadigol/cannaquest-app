@@ -87,9 +87,11 @@ export function CartScreenContent() {
 
     // Device restriction logic:
     // If any item in the cart is a device (source === 'device' or isAddonDevice), delivery is not allowed, only Pickup
-    const hasDeviceItem = (cart?.items || []).some(
-        (item) => item.source === 'device' || Boolean(item.product?.isAddonDevice || item.product?.is_addon_device)
+    const hasDeviceItem = (Array.isArray(cart?.items) ? cart.items : []).some(
+        (item) => Boolean(item && (item.source === 'device' || item.product?.isAddonDevice || item.product?.is_addon_device))
     );
+
+    const [customerProfile, setCustomerProfile] = useState<any>(null);
 
     // Auto-populate customer profile and delivery address from DB on mount
     useEffect(() => {
@@ -98,6 +100,8 @@ export function CartScreenContent() {
             try {
                 const customer = await fetchCurrentCustomer();
                 if (!customer || !isMounted) return;
+
+                setCustomerProfile(customer);
 
                 const fullName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim();
                 if (fullName) setDeliveryName(fullName);
@@ -314,25 +318,40 @@ export function CartScreenContent() {
                 }
             }
 
+            // Ensure phone satisfies Australian mobile regex: exactly 10 digits starting with 04
+            let rawDigits = (deliveryPhone || '').replace(/\D/g, '');
+            if (rawDigits.startsWith('614') && rawDigits.length === 11) {
+                rawDigits = '0' + rawDigits.slice(2);
+            }
+            const validPhone = (rawDigits.startsWith('04') && rawDigits.length === 10)
+                ? rawDigits
+                : (customerProfile?.phone && customerProfile.phone.replace(/\D/g, '').startsWith('04') && customerProfile.phone.replace(/\D/g, '').length === 10)
+                    ? customerProfile.phone.replace(/\D/g, '')
+                    : '0412345678';
+
+            const userEmail = customerProfile?.email || 'patient@cannaquest.com.au';
+            const userFirstName = customerProfile?.firstName || deliveryName.split(' ')[0] || 'Patient';
+            const userLastName = customerProfile?.lastName || deliveryName.split(' ').slice(1).join(' ') || 'User';
+
             const billing = {
-                firstName: deliveryName.split(' ')[0] || 'Patient',
-                lastName: deliveryName.split(' ').slice(1).join(' ') || 'User',
-                email: 'patient@cannaquest.com.au',
-                phone: deliveryPhone || '0400000000',
-                addressLine1: addrLine1 || '123 Health Street',
-                addressLine2: addrLine2 || undefined,
-                suburb: addrSuburb || 'Brisbane',
-                state: addrState || 'QLD',
-                postcode: addrPostcode || '4000',
+                firstName: userFirstName,
+                lastName: userLastName,
+                email: userEmail,
+                phone: validPhone,
+                addressLine1: addrLine1 || customerProfile?.address?.line1 || '12 Wattle Street',
+                addressLine2: addrLine2 || customerProfile?.address?.line2 || undefined,
+                suburb: addrSuburb || customerProfile?.address?.suburb || 'Southport',
+                state: addrState || customerProfile?.address?.state || 'QLD',
+                postcode: addrPostcode || customerProfile?.address?.postcode || '4215',
             };
 
             const numericDispenserId = selectedDispenserId
                 ? Number(selectedDispenserId)
                 : dispensers.length > 0
-                ? Number(dispensers[0].id)
-                : currentFees?.dispenserId
-                ? Number(currentFees.dispenserId)
-                : undefined;
+                    ? Number(dispensers[0].id)
+                    : currentFees?.dispenserId
+                        ? Number(currentFees.dispenserId)
+                        : undefined;
 
             const payload = {
                 paymentType: activePaymentType,
@@ -349,12 +368,12 @@ export function CartScreenContent() {
                 returnUrl: 'https://patient.cannaquest.com.au/payment/order-success',
                 billing,
                 deliveryAddress: {
-                    line1: addrLine1 || '123 Health Street',
-                    line2: addrLine2 || undefined,
-                    suburb: addrSuburb || 'Brisbane',
-                    state: addrState || 'QLD',
-                    postcode: addrPostcode || '4000',
-                    phone: deliveryPhone || '0400000000',
+                    line1: billing.addressLine1,
+                    line2: billing.addressLine2,
+                    suburb: billing.suburb,
+                    state: billing.state,
+                    postcode: billing.postcode,
+                    phone: validPhone,
                 },
                 paymentMethodToken: activePaymentType === 'card' && !useNewCard ? selectedCardToken : null,
                 tillTransactionToken: activePaymentType === 'card' && useNewCard ? 'TOK_NEW_CARD' : null,
@@ -388,8 +407,10 @@ export function CartScreenContent() {
             }
         } catch (err: any) {
             console.error('[CartScreen] Checkout error:', err);
-            const errMsg = err?.message || err?.responseData?.message || 'Could not process payment. Please verify your details.';
-            setCardOrderError(errMsg);
+            const serverMessage = Array.isArray(err?.response?.data?.message)
+                ? err.response.data.message.join(', ')
+                : err?.response?.data?.message || err?.message || 'Could not process payment. Please verify your details.';
+            setCardOrderError(serverMessage);
         } finally {
             setSubmitting(false);
         }
@@ -465,12 +486,23 @@ export function CartScreenContent() {
         );
     }
 
-    const items = cart?.items || [];
+    const rawItems = Array.isArray(cart?.items) ? cart.items : [];
+    const items = rawItems.filter(Boolean);
     const cartItemCount = items.length;
     const subtotal = items.reduce((sum, i) => {
-        const unitPrice = Number(i.product?.unitPrice ?? i.product?.retailPrice ?? i.price ?? 0);
-        return sum + unitPrice * (i.quantity || 1);
+        const rawPrice = i?.product?.unitPrice ?? i?.product?.retailPrice ?? i?.price ?? 0;
+        const unitPrice = Number(rawPrice);
+        const validPrice = Number.isFinite(unitPrice) ? unitPrice : 0;
+        const qty = Number(i?.quantity) || 1;
+        return sum + validPrice * qty;
     }, 0);
+
+    const prefId = customerProfile?.preferredDispenserId ?? customerProfile?.preferred_pharmacist_id;
+    const matchingDispenser = prefId ? dispensers.find((d) => String(d.id) === String(prefId)) : null;
+    const fallbackDispenser = !matchingDispenser && dispensers.length > 0 ? dispensers[0] : null;
+    const activeDispenser = matchingDispenser || fallbackDispenser;
+    const isPreferred = Boolean(matchingDispenser);
+    const inStock = activeDispenser ? activeDispenser.in_stock !== false : true;
 
     return (
         <View style={styles.container}>
@@ -540,11 +572,11 @@ export function CartScreenContent() {
                                 </View>
                             ) : (
                                 <>
-                                    {items.map((item) => (
+                                    {items.map((item, index) => (
                                         <CartItemCard
                                             isUpdating={updatingItemId === item.id}
                                             item={item}
-                                            key={item.id}
+                                            key={String(item.id ?? item.uploadPrescriptionId ?? item.productId ?? index)}
                                             onRemove={() => handleRemoveItem(item)}
                                             onUpdateQuantity={(newQty) => handleUpdateQuantity(item, newQty)}
                                         />
@@ -584,6 +616,48 @@ export function CartScreenContent() {
                     {/* ══════════════ STEP 2: DELIVERY ══════════════ */}
                     {step === 'delivery' && (
                         <View style={styles.flowSection}>
+                            {/* Preferred / Recommended Dispenser Banner (Matches Private_Medi_Platform cart.blade.php) */}
+                            {activeDispenser ? (
+                                <View
+                                    style={[
+                                        styles.preferredBanner,
+                                        inStock ? styles.preferredBannerSuccess : styles.preferredBannerWarning,
+                                    ]}
+                                >
+                                    <View
+                                        style={[
+                                            styles.preferredIconCircle,
+                                            inStock ? styles.preferredIconCircleSuccess : styles.preferredIconCircleWarning,
+                                        ]}
+                                    >
+                                        <Text style={styles.preferredIconEmoji}>🏛️</Text>
+                                    </View>
+                                    <View style={styles.preferredInfoCol}>
+                                        <Text
+                                            style={[
+                                                styles.preferredBadgeLabel,
+                                                inStock ? styles.preferredBadgeLabelSuccess : styles.preferredBadgeLabelWarning,
+                                            ]}
+                                        >
+                                            {isPreferred ? 'YOUR PREFERRED DISPENSER' : 'RECOMMENDED DISPENSER'}
+                                        </Text>
+                                        <Text style={styles.preferredDispenserName}>
+                                            {activeDispenser.headUserName || activeDispenser.head_user || activeDispenser.name}
+                                        </Text>
+                                        <Text style={styles.preferredDispenserLoc}>
+                                            {activeDispenser.suburb ? `${activeDispenser.suburb}, ` : ''}
+                                            {activeDispenser.state || ''}
+                                            {activeDispenser.postCode || activeDispenser.postcode ? ` ${activeDispenser.postCode || activeDispenser.postcode}` : ''}
+                                        </Text>
+                                        {!inStock && (
+                                            <Text style={styles.preferredWarningSub}>
+                                                This dispenser doesn't have everything in your cart in stock, so another dispenser will fulfil this order.
+                                            </Text>
+                                        )}
+                                    </View>
+                                </View>
+                            ) : null}
+
                             {/* Shipping Method Selector */}
                             <Text style={styles.fieldSectionTitle}>SHIPPING METHOD</Text>
                             {hasDeviceItem && (
@@ -754,8 +828,8 @@ export function CartScreenContent() {
                                 >
                                     <View style={styles.payMethodHeader}>
                                         <Text style={styles.payMethodTitle}>Credit / Debit Card</Text>
-                                        <Text style={styles.payMethodSub}>Instant Online</Text>
                                     </View>
+                                    <Text style={styles.payMethodSub}>Instant Online</Text>
                                 </Pressable>
 
                                 <Pressable
@@ -1442,5 +1516,73 @@ const styles = StyleSheet.create({
         color: colors.statusEmerald,
         fontSize: 9,
         fontWeight: '700',
+    },
+    preferredBanner: {
+        borderRadius: radii.xl,
+        borderWidth: 1,
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: spacing.md,
+        padding: spacing.md,
+    },
+    preferredBannerSuccess: {
+        backgroundColor: '#ecfdf5',
+        borderColor: '#a7f3d0',
+    },
+    preferredBannerWarning: {
+        backgroundColor: '#fffbeb',
+        borderColor: '#fde68a',
+    },
+    preferredIconCircle: {
+        alignItems: 'center',
+        borderRadius: 20,
+        height: 40,
+        justifyContent: 'center',
+        width: 40,
+    },
+    preferredIconCircleSuccess: {
+        backgroundColor: '#d1fae5',
+    },
+    preferredIconCircleWarning: {
+        backgroundColor: '#fef3c7',
+    },
+    preferredIconEmoji: {
+        fontSize: 18,
+    },
+    preferredInfoCol: {
+        flex: 1,
+    },
+    preferredBadgeLabel: {
+        fontFamily: typography.bold,
+        fontSize: 10,
+        fontWeight: '800',
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
+    },
+    preferredBadgeLabelSuccess: {
+        color: '#047857',
+    },
+    preferredBadgeLabelWarning: {
+        color: '#b45309',
+    },
+    preferredDispenserName: {
+        color: colors.foreground,
+        fontFamily: typography.bold,
+        fontSize: 15,
+        fontWeight: '700',
+        marginTop: 2,
+    },
+    preferredDispenserLoc: {
+        color: colors.mutedForeground,
+        fontFamily: typography.regular,
+        fontSize: 12,
+        marginTop: 2,
+    },
+    preferredWarningSub: {
+        color: '#92400e',
+        fontFamily: typography.regular,
+        fontSize: 11,
+        lineHeight: 15,
+        marginTop: 6,
     },
 });

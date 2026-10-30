@@ -96,7 +96,7 @@ export function HomeScreenContent() {
           { key: 'scripts', label: 'Scripts', icon: '📄', onPress: () => goToTab('/(app)/(tabs)/scripts') },
           { key: 'consults', label: 'Consults', icon: '🩺', onPress: () => goToTab('/(app)/(tabs)/consults') },
           { key: 'orders', label: 'Orders', icon: '📦', onPress: () => goToTab('/(app)/(tabs)/orders') },
-          { key: 'catalog', label: 'Catalog', icon: '🛍️', onPress: () => goToTab('/(app)/(tabs)/products') },
+          { key: 'catalog', label: 'Products', icon: '🛍️', onPress: () => goToTab('/(app)/(tabs)/products') },
         ]}
       />
 
@@ -114,11 +114,11 @@ export function HomeScreenContent() {
       ) : null}
 
       <OrderableScriptsList
-        onAddToCart={async (scriptId) => {
+        onAddToCart={async (rx) => {
           try {
             await addToCart({
-              productId: scriptId,
-              prescriptionId: Number(scriptId),
+              productId: rx.productId || rx.id,
+              prescriptionId: Number(rx.prescriptionId || rx.id),
               source: 'prescription',
             });
             await refreshCart();

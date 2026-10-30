@@ -15,10 +15,10 @@ import { OrderMiniProgressSteps } from './OrderMiniProgressSteps';
 import type { OrderItem, OrderSummary } from '../api/orders.types';
 
 // Category fallback thumbnails
-const jarImg = require('@/../assets/images/product-categories/jar.webp');
-const oilImg = require('@/../assets/images/product-categories/oil.webp');
-const edibleImg = require('@/../assets/images/product-categories/edible.webp');
-const deviceImg = require('@/../assets/images/product-categories/device.webp');
+const jarImg = require('../../../../assets/images/product-categories/jar.webp');
+const oilImg = require('../../../../assets/images/product-categories/oil.webp');
+const edibleImg = require('../../../../assets/images/product-categories/edible.webp');
+const deviceImg = require('../../../../assets/images/product-categories/device.webp');
 
 export function OrderCategoryThumbnail({ item }: { item?: OrderItem | null }) {
     if (!item) {
@@ -175,53 +175,100 @@ export function OrderCard({ order, onPressOrder }: Props) {
             </Pressable>
 
             {/* ── Row 4: PayID Pending Payment Banner (Inline) ───── */}
-            {isPendingPayId && (
-                <View style={styles.payIdCard}>
-                    <View style={styles.payIdTopRow}>
-                        <View style={styles.bankIconCircle}>
-                            <Text style={styles.bankIcon}>🏛️</Text>
+            {isPendingPayId && (() => {
+                const now = Date.now();
+                const createdMs = order.created_at ? new Date(order.created_at).getTime() : now;
+                const expiryMs = order.payid_expires_at
+                    ? new Date(order.payid_expires_at).getTime()
+                    : createdMs + 72 * 3600 * 1000;
+                const isCardExpired = ['11', 'PAYID_EXPIRED', '3', 'CANCELLED', '5'].includes(String(order.status || '')) ||
+                    (expiryMs <= now && order.status !== '2' && order.status !== 'PAID');
+
+                // If expired, do not display actionable payment banner
+                if (isCardExpired) {
+                    return null;
+                }
+
+                const totalDuration = Math.max(1, expiryMs - createdMs);
+                const elapsed = Math.max(0, now - createdMs);
+                const pct = Math.min(100, Math.max(0, Math.round((elapsed / totalDuration) * 100)));
+                const msLeft = Math.max(0, expiryMs - now);
+                const hoursLeft = Math.floor(msLeft / (3600 * 1000));
+                const minsLeft = Math.floor((msLeft % (3600 * 1000)) / (60 * 1000));
+                const isUrgent = hoursLeft < 24;
+
+                return (
+                    <View style={styles.payIdCard}>
+                        <View style={styles.payIdTopRow}>
+                            <View style={styles.bankIconCircle}>
+                                <Text style={styles.bankIcon}>🏛️</Text>
+                            </View>
+                            <View style={styles.payIdTitleCol}>
+                                <View style={styles.payIdTitleInlineRow}>
+                                    <Text style={styles.payIdTitle}>Payment Pending</Text>
+                                    <View style={[styles.cardExpiryBadge, isUrgent && styles.cardExpiryBadgeUrgent]}>
+                                        <Text style={[styles.cardExpiryBadgeText, isUrgent && styles.cardExpiryBadgeTextUrgent]}>
+                                            {hoursLeft > 24 ? `${Math.ceil(hoursLeft / 24)}d left` : `${hoursLeft}h ${minsLeft}m left`}
+                                        </Text>
+                                    </View>
+                                </View>
+                                <Text style={styles.payIdSub}>
+                                    Transfer{' '}
+                                    <Text style={styles.boldText}>
+                                        ${Number(order.total_amount).toFixed(2)}
+                                    </Text>{' '}
+                                    using reference{' '}
+                                    <Text style={styles.monoRef}>
+                                        {order.payid_reference || order.uuid}
+                                    </Text>
+                                </Text>
+                            </View>
                         </View>
-                        <View style={styles.payIdTitleCol}>
-                            <Text style={styles.payIdTitle}>Payment Pending</Text>
-                            <Text style={styles.payIdSub}>
-                                Transfer{' '}
-                                <Text style={styles.boldText}>
-                                    ${Number(order.total_amount).toFixed(2)}
-                                </Text>{' '}
-                                using reference{' '}
-                                <Text style={styles.monoRef}>
+
+                        {/* PayID Expiry Progress Bar */}
+                        <View style={styles.cardPayIdTimelineWrap}>
+                            <View style={styles.cardPayIdTimelineTrack}>
+                                <View style={[
+                                    styles.cardPayIdTimelineFill,
+                                    { width: `${pct}%` },
+                                    isUrgent && styles.cardPayIdTimelineFillUrgent,
+                                ]} />
+                            </View>
+                            <View style={styles.cardPayIdTimelineMeta}>
+                                <Text style={styles.cardPayIdMetaLeft}>{pct}% window elapsed</Text>
+                                <Text style={styles.cardPayIdMetaRight}>
+                                    Cutoff: {new Date(expiryMs).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })} · {new Date(expiryMs).toLocaleTimeString('en-AU', { hour: 'numeric', minute: '2-digit', hour12: true })}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Reference Copy Action */}
+                        <View style={styles.refRow}>
+                            <View>
+                                <Text style={styles.refLabel}>Your Reference</Text>
+                                <Text style={styles.refCode}>
                                     {order.payid_reference || order.uuid}
                                 </Text>
-                            </Text>
+                            </View>
+                            <Pressable
+                                hitSlop={8}
+                                onPress={() => copyReference(order.payid_reference || order.uuid)}
+                                style={styles.copyBtn}
+                            >
+                                <Text style={styles.copyBtnText}>{copied ? 'Copied!' : 'Copy'}</Text>
+                            </Pressable>
                         </View>
-                    </View>
 
-                    {/* Reference Copy Action */}
-                    <View style={styles.refRow}>
-                        <View>
-                            <Text style={styles.refLabel}>Your Reference</Text>
-                            <Text style={styles.refCode}>
-                                {order.payid_reference || order.uuid}
-                            </Text>
-                        </View>
+                        {/* Action button */}
                         <Pressable
-                            hitSlop={8}
-                            onPress={() => copyReference(order.payid_reference || order.uuid)}
-                            style={styles.copyBtn}
+                            onPress={() => onPressOrder(order)}
+                            style={({ pressed }) => [styles.payIdActionBtn, pressed && styles.cardPressed]}
                         >
-                            <Text style={styles.copyBtnText}>{copied ? 'Copied!' : 'Copy'}</Text>
+                            <Text style={styles.payIdActionBtnText}>View & Complete Payment</Text>
                         </Pressable>
                     </View>
-
-                    {/* Action button */}
-                    <Pressable
-                        onPress={() => onPressOrder(order)}
-                        style={({ pressed }) => [styles.payIdActionBtn, pressed && styles.cardPressed]}
-                    >
-                        <Text style={styles.payIdActionBtnText}>View & Complete Payment</Text>
-                    </Pressable>
-                </View>
-            )}
+                );
+            })()}
         </View>
     );
 }
@@ -329,6 +376,66 @@ const styles = StyleSheet.create({
     payIdTitle: {
         color: '#1e3a8a',
         fontSize: 13,
+        fontWeight: '700',
+    },
+    payIdTitleInlineRow: {
+        alignItems: 'center',
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    cardExpiryBadge: {
+        backgroundColor: '#dbeafe',
+        borderColor: '#bfdbfe',
+        borderRadius: radii.full,
+        borderWidth: 1,
+        paddingHorizontal: 7,
+        paddingVertical: 2,
+    },
+    cardExpiryBadgeUrgent: {
+        backgroundColor: '#fee2e2',
+        borderColor: '#fca5a5',
+    },
+    cardExpiryBadgeText: {
+        color: '#1d4ed8',
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    cardExpiryBadgeTextUrgent: {
+        color: '#b91c1c',
+    },
+    cardPayIdTimelineWrap: {
+        gap: 4,
+        marginTop: 2,
+    },
+    cardPayIdTimelineTrack: {
+        backgroundColor: '#dbeafe',
+        borderColor: '#bfdbfe',
+        borderRadius: radii.full,
+        borderWidth: 1,
+        height: 6,
+        overflow: 'hidden',
+        width: '100%',
+    },
+    cardPayIdTimelineFill: {
+        backgroundColor: '#2563eb',
+        borderRadius: radii.full,
+        height: '100%',
+    },
+    cardPayIdTimelineFillUrgent: {
+        backgroundColor: '#dc2626',
+    },
+    cardPayIdTimelineMeta: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+    },
+    cardPayIdMetaLeft: {
+        color: '#64748b',
+        fontSize: 9,
+        fontWeight: '600',
+    },
+    cardPayIdMetaRight: {
+        color: '#1e3a8a',
+        fontSize: 9,
         fontWeight: '700',
     },
     payIdTitleCol: {

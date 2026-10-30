@@ -19,13 +19,19 @@ export interface SignedPrivacyDocument {
     };
 }
 
+// Expo only inlines variables prefixed with EXPO_PUBLIC_ into the client bundle.
+const AWS_REGION = process.env.EXPO_PUBLIC_AWS_DEFAULT_REGION ?? '';
+const AWS_BUCKET = process.env.EXPO_PUBLIC_AWS_BUCKET ?? '';
+
 export const AWS_CONFIG = {
-    accessKeyId: process.env.AWS_ACCESS_KEY_ID ?? ['AKIAXOLQ', '6XIS65ZD', 'SAER'].join(''),
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY ?? ['9wfXLQbw', 'Ad06Sz7F', '7vzsgNRN', 'GpqGxpPn', 'sMhmigiK'].join(''),
-    region: process.env.AWS_DEFAULT_REGION ?? 'ap-southeast-2',
-    bucket: process.env.AWS_BUCKET ?? 'cannaquest-storage',
-    host: `${process.env.AWS_BUCKET ?? 'cannaquest-storage'}.s3.${process.env.AWS_DEFAULT_REGION ?? 'ap-southeast-2'}.amazonaws.com`,
+    accessKeyId: process.env.EXPO_PUBLIC_AWS_ACCESS_KEY_ID ?? '',
+    secretAccessKey: process.env.EXPO_PUBLIC_AWS_SECRET_ACCESS_KEY ?? '',
+    region: AWS_REGION,
+    bucket: AWS_BUCKET,
+    host: `${AWS_BUCKET}.s3.${AWS_REGION}.amazonaws.com`,
 };
+
+export const S3_BASE_URL = `https://${AWS_CONFIG.host}`;
 
 function stringToUtf8(str: string): Uint8Array {
     const bytes: number[] = [];
@@ -295,11 +301,52 @@ export function getS3PresignedUrl(rawKeyOrUrl: string, expiresInSeconds: number 
 }
 
 /**
- * Uploads any binary or text buffer/file directly to S3 with AWS SigV4
+ * Convert base64 string to Uint8Array binary buffer safely across React Native environments
+ */
+function base64ToUint8Array(base64: string): Uint8Array {
+    const clean = base64.replace(/^data:[^;]+;base64,/, '').replace(/[\r\n\s]/g, '');
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    const lookup = new Uint8Array(256);
+    for (let i = 0; i < chars.length; i++) {
+        lookup[chars.charCodeAt(i)] = i;
+    }
+
+    let len = clean.length;
+    if (len % 4 > 0) {
+        clean.padEnd(len + (4 - (len % 4)), '=');
+        len = clean.length;
+    }
+
+    let placeHolders = 0;
+    if (clean.endsWith('==')) placeHolders = 2;
+    else if (clean.endsWith('=')) placeHolders = 1;
+
+    const byteLength = (len * 3) / 4 - placeHolders;
+    const bytes = new Uint8Array(byteLength);
+
+    let cur = 0;
+    for (let i = 0; i < len; i += 4) {
+        const a = lookup[clean.charCodeAt(i)];
+        const b = lookup[clean.charCodeAt(i + 1)];
+        const c = lookup[clean.charCodeAt(i + 2)];
+        const d = lookup[clean.charCodeAt(i + 3)];
+
+        bytes[cur++] = (a << 2) | (b >> 4);
+        if (cur < byteLength) bytes[cur++] = ((b & 15) << 4) | (c >> 2);
+        if (cur < byteLength) bytes[cur++] = ((c & 3) << 6) | (d & 63);
+    }
+    return bytes;
+}
+
+/**
+ * Uploads any binary or text buffer directly to AWS S3 with AWS SigV4.
+ * If fileData is a Base64 data URI (e.g. data:image/jpeg;base64,...), it is
+ * decoded into true binary JPEG/PNG before uploading so browsers and image viewers
+ * render it as an actual image file.
  */
 export async function uploadFileToS3(
     key: string,
-    fileData: string | Blob,
+    fileData: string | Uint8Array | Blob,
     contentType: string
 ): Promise<{ success: boolean; url: string; key: string }> {
     try {
@@ -310,10 +357,22 @@ export async function uploadFileToS3(
         const dateStamp = amzDate.substring(0, 8);
         const canonicalUri = `/${encodeURI(cleanKey)}`;
 
-        let payloadHash = 'UNSIGNED-PAYLOAD';
+        let binaryPayload: Uint8Array;
         if (typeof fileData === 'string') {
-            payloadHash = bytesToHex(sha256Bytes(stringToUtf8(fileData)));
+            if (fileData.startsWith('data:')) {
+                binaryPayload = base64ToUint8Array(fileData);
+            } else {
+                binaryPayload = stringToUtf8(fileData);
+            }
+        } else if (fileData instanceof Uint8Array) {
+            binaryPayload = fileData;
+        } else {
+            // Blob / ArrayBuffer
+            const ab = await (fileData as any).arrayBuffer();
+            binaryPayload = new Uint8Array(ab);
         }
+
+        const payloadHash = bytesToHex(sha256Bytes(binaryPayload));
 
         const canonicalHeaders = `content-type:${contentType}\nhost:${host}\nx-amz-content-sha256:${payloadHash}\nx-amz-date:${amzDate}\n`;
         const signedHeaders = 'content-type;host;x-amz-content-sha256;x-amz-date';
@@ -345,12 +404,13 @@ export async function uploadFileToS3(
                 'x-amz-content-sha256': payloadHash,
                 Authorization: authorization,
             },
-            body: fileData,
+            body: binaryPayload as any,
         });
 
         if (res.ok) {
             return { success: true, url: uploadUrl, key: cleanKey };
         }
+        console.warn('uploadFileToS3 failed with status:', res.status);
         return { success: false, url: '', key: cleanKey };
     } catch (err) {
         console.warn('uploadFileToS3 error:', err);

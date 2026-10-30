@@ -84,13 +84,13 @@ export function SelectPrescriberModal({
         <View style={styles.modalCard}>
           {/* Header */}
           <View style={styles.header}>
-            <View>
+            <View style={styles.headerText}>
               <Text style={styles.title}>Choose Your Prescriber</Text>
               <Text style={styles.subtitle}>
                 Select a doctor you’ve consulted with to review this prescription.
               </Text>
             </View>
-            <Pressable onPress={onClose} style={styles.closeBtn}>
+            <Pressable onPress={onClose} hitSlop={10} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
             </Pressable>
           </View>
@@ -209,12 +209,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 2,
   },
+  headerText: {
+    flex: 1,
+    paddingRight: 8,
+  },
   closeBtn: {
-    padding: 4,
+    alignItems: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.06)',
+    borderRadius: 14,
+    height: 28,
+    justifyContent: 'center',
+    width: 28,
   },
   closeBtnText: {
-    color: colors.gray400,
-    fontSize: 16,
+    color: colors.gray500,
+    fontSize: 14,
+    lineHeight: 16,
   },
   scriptSummary: {
     backgroundColor: 'rgba(14, 48, 23, 0.05)',

@@ -9,13 +9,13 @@ import {
 } from 'react-native';
 import { colors, radii, shadows, spacing, typography } from '@/lib/theme/tokens';
 import type { CartItem } from '../api/cart.types';
-import { getS3PresignedUrl } from '@/features/customer/api/s3ComplianceService';
+import { getS3PresignedUrl, S3_BASE_URL } from '@/features/customer/api/s3ComplianceService';
 
 // Category thumbnails
-const jarImg = require('@/../assets/images/product-categories/jar.webp');
-const oilImg = require('@/../assets/images/product-categories/oil.webp');
-const edibleImg = require('@/../assets/images/product-categories/edible.webp');
-const deviceImg = require('@/../assets/images/product-categories/device.webp');
+const jarImg = require('../../../../assets/images/product-categories/jar.webp');
+const oilImg = require('../../../../assets/images/product-categories/oil.webp');
+const edibleImg = require('../../../../assets/images/product-categories/edible.webp');
+const deviceImg = require('../../../../assets/images/product-categories/device.webp');
 
 interface Props {
     item: CartItem;
@@ -24,74 +24,91 @@ interface Props {
     isUpdating?: boolean;
 }
 
+function safeString(val: unknown): string {
+    if (val === null || val === undefined) return '';
+    if (typeof val === 'string') return val;
+    if (typeof val === 'number') return String(val);
+    if (typeof val === 'object') {
+        const obj = val as Record<string, unknown>;
+        if (typeof obj.name === 'string') return obj.name;
+        if (typeof obj.value === 'string') return obj.value;
+        if (typeof obj.label === 'string') return obj.label;
+        if (typeof obj.title === 'string') return obj.title;
+    }
+    return '';
+}
+
 export function CartItemCard({ item, onUpdateQuantity, onRemove, isUpdating }: Props) {
-    const prod = item.product;
-    const cat = (prod?.category || prod?.form || '').toLowerCase();
-    const isDevice = prod?.isAddonDevice || prod?.is_addon_device || cat.includes('device');
+    const prod = item?.product;
+    const catStr = (safeString(prod?.category) || safeString(prod?.form) || safeString(item?.form) || '').toLowerCase();
+    const isDevice = Boolean(prod?.isAddonDevice || prod?.is_addon_device || catStr.includes('device'));
 
     let imageSrc = jarImg;
     if (isDevice) {
         imageSrc = deviceImg;
-    } else if (cat.includes('oil') || cat.includes('tincture') || cat.includes('vape')) {
+    } else if (catStr.includes('oil') || catStr.includes('tincture') || catStr.includes('vape')) {
         imageSrc = oilImg;
-    } else if (cat.includes('edible') || cat.includes('gummy') || cat.includes('capsule')) {
+    } else if (catStr.includes('edible') || catStr.includes('gummy') || catStr.includes('capsule')) {
         imageSrc = edibleImg;
     }
 
-    const price = Number(
-        prod?.unitPrice ?? prod?.unit_price ?? prod?.retailPrice ?? prod?.retail_price ?? item.price ?? 0
+    const rawPrice = Number(
+        prod?.unitPrice ?? prod?.unit_price ?? prod?.retailPrice ?? prod?.retail_price ?? item?.price ?? 0
     );
-    const lineTotal = price * (item.quantity || 1);
-    const isPrescribed = item.source === 'prescription' || Boolean(item.uploadPrescriptionId || item.prescriptionId);
+    const price = Number.isFinite(rawPrice) ? rawPrice : 0;
+    const rawQty = Number(item?.quantity);
+    const qty = Number.isFinite(rawQty) && rawQty > 0 ? rawQty : 1;
+    const lineTotal = price * qty;
+    const isPrescribed = item?.source === 'prescription' || Boolean(item?.uploadPrescriptionId || item?.prescriptionId);
 
     const handleMinus = () => {
         if (isUpdating) return;
-        if (item.quantity <= 1) {
-            onRemove();
+        if (qty <= 1) {
+            onRemove?.();
         } else {
-            onUpdateQuantity(item.quantity - 1);
+            onUpdateQuantity?.(qty - 1);
         }
     };
 
     const handlePlus = () => {
         if (isUpdating) return;
-        onUpdateQuantity((Number(item.quantity) || 1) + 1);
+        onUpdateQuantity?.(qty + 1);
     };
+
+    const rawImg = prod?.imageUrl || prod?.image_url || item?.imageUrl;
+    let validImageUri: string | null = null;
+    if (typeof rawImg === 'string' && rawImg.trim().length > 0) {
+        const trimmed = rawImg.trim();
+        if (trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('data:image')) {
+            validImageUri = trimmed;
+        }
+    }
+
+    const title = safeString(prod?.name) || safeString(item?.name) || 'Prescription Product';
+    const brand = safeString(prod?.brand) || safeString(item?.brand);
+    const strength = safeString(prod?.strength) || safeString(item?.strength);
 
     return (
         <View style={styles.card}>
             {/* Top row: Image, Title, Price */}
             <View style={styles.cardHeader}>
                 <View style={styles.thumbContainer}>
-                    {(() => {
-                        const rawImg = prod?.imageUrl || prod?.image_url;
-                        if (rawImg && typeof rawImg === 'string' && rawImg.trim().length > 0) {
-                            const trimmed = rawImg.trim();
-                            const rawUri = trimmed.startsWith('http://') || trimmed.startsWith('https://')
-                                ? trimmed
-                                : `https://cannaquest-storage.s3.ap-southeast-2.amazonaws.com/${trimmed.replace(/^\/+/, '')}`;
-                            const uri = getS3PresignedUrl(rawUri);
-                            return (
-                                <Image
-                                    resizeMode="contain"
-                                    source={{ uri }}
-                                    style={styles.thumbImage}
-                                />
-                            );
-                        }
-                        return <Image resizeMode="contain" source={imageSrc} style={styles.thumbImage} />;
-                    })()}
+                    <Image
+                        resizeMode="contain"
+                        source={validImageUri ? { uri: validImageUri } : imageSrc}
+                        style={styles.thumbImage}
+                    />
                 </View>
 
                 <View style={styles.detailsCol}>
                     <View style={styles.titleRow}>
                         <Text numberOfLines={2} style={styles.productTitle}>
-                            {prod?.name || item.name || 'Prescription Product'}
+                            {title}
                         </Text>
                         <Pressable
                             disabled={isUpdating}
                             hitSlop={10}
-                            onPress={onRemove}
+                            onPress={() => onRemove?.()}
                             style={({ pressed }) => [styles.deleteBtn, pressed && styles.pressed]}
                         >
                             {isUpdating ? (
@@ -102,11 +119,11 @@ export function CartItemCard({ item, onUpdateQuantity, onRemove, isUpdating }: P
                         </Pressable>
                     </View>
 
-                    {prod?.brand || item.brand ? (
+                    {Boolean(brand) && (
                         <Text numberOfLines={1} style={styles.brandText}>
-                            {prod?.brand || item.brand}
+                            {brand}
                         </Text>
-                    ) : null}
+                    )}
 
                     <View style={styles.tagRow}>
                         {isPrescribed ? (
@@ -115,11 +132,11 @@ export function CartItemCard({ item, onUpdateQuantity, onRemove, isUpdating }: P
                             </View>
                         ) : null}
 
-                        {prod?.strength || item.strength ? (
+                        {Boolean(strength) && (
                             <View style={styles.strengthTag}>
-                                <Text style={styles.strengthTagText}>{prod?.strength || item.strength}</Text>
+                                <Text style={styles.strengthTagText}>{strength}</Text>
                             </View>
-                        ) : null}
+                        )}
                     </View>
                 </View>
             </View>
@@ -147,7 +164,7 @@ export function CartItemCard({ item, onUpdateQuantity, onRemove, isUpdating }: P
                             {isUpdating ? (
                                 <ActivityIndicator color={colors.primaryGreen} size="small" />
                             ) : (
-                                <Text style={styles.quantityNumber}>{item.quantity}</Text>
+                                <Text style={styles.quantityNumber}>{qty}</Text>
                             )}
                         </View>
 
@@ -167,7 +184,7 @@ export function CartItemCard({ item, onUpdateQuantity, onRemove, isUpdating }: P
                 ) : (
                     <View style={styles.prescribedNoteBox}>
                         <Text style={styles.prescribedNoteText}>
-                            🔒 Fixed {item.quantity} {item.quantity === 1 ? 'unit' : 'units'} per fill
+                            🔒 Fixed {qty} {qty === 1 ? 'unit' : 'units'} per fill
                         </Text>
                     </View>
                 )}

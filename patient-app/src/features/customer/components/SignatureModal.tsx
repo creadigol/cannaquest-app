@@ -19,11 +19,12 @@ type Props = {
     visible: boolean;
     onClose: () => void;
     onSave: (signatureData: string) => Promise<void>;
+    patientId?: string | number | null;
 };
 
 type Point = { x: number; y: number };
 
-export function SignatureModal({ visible, onClose, onSave }: Props) {
+export function SignatureModal({ visible, onClose, onSave, patientId }: Props) {
     const [tab, setTab] = useState<'draw' | 'type' | 'upload'>('draw');
     const [typedName, setTypedName] = useState('');
     const [paths, setPaths] = useState<Point[][]>([]);
@@ -107,40 +108,124 @@ export function SignatureModal({ visible, onClose, onSave }: Props) {
         try {
             setError(null);
 
-            let pickedAsset: { uri: string; base64?: string | null; mimeType?: string } | null = null;
+            let pickedAsset: { uri: string; name?: string; base64?: string | null; mimeType?: string } | null = null;
 
-            // Use DocumentPicker directly (safe and does not throw ExponentImagePicker missing module crash)
-            const DocumentPicker = await import('expo-document-picker');
-            const docRes = await DocumentPicker.getDocumentAsync({
-                type: ['image/png', 'image/jpeg', 'image/jpg', 'image/*'],
-                copyToCacheDirectory: true,
-            });
-            if (!docRes.canceled && docRes.assets && docRes.assets.length > 0) {
-                pickedAsset = docRes.assets[0];
+            // Strategy 1: Attempt native expo-document-picker supporting images and PDFs
+            try {
+                const DocumentPicker = await import('expo-document-picker');
+                const docRes = await DocumentPicker.getDocumentAsync({
+                    type: [
+                        'image/png',
+                        'image/jpeg',
+                        'image/jpg',
+                        'image/heic',
+                        'image/heif',
+                        'application/pdf',
+                        'image/*',
+                    ],
+                    copyToCacheDirectory: true,
+                });
+
+                if (!docRes.canceled && docRes.assets && docRes.assets.length > 0) {
+                    pickedAsset = docRes.assets[0];
+                }
+            } catch (docErr) {
+                console.warn('[SignatureModal] DocumentPicker failed, trying ImagePicker:', docErr);
+            }
+
+            // Strategy 2: If DocumentPicker was canceled or unavailable, try expo-image-picker
+            if (!pickedAsset) {
+                try {
+                    const ImagePicker = await import('expo-image-picker');
+                    const imgRes = await ImagePicker.launchImageLibraryAsync({
+                        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+                        allowsEditing: false,
+                        quality: 0.9,
+                        base64: true,
+                    });
+
+                    if (!imgRes.canceled && imgRes.assets && imgRes.assets.length > 0) {
+                        const img = imgRes.assets[0];
+                        pickedAsset = {
+                            uri: img.uri,
+                            name: img.fileName || 'signature.jpg',
+                            mimeType: img.mimeType || 'image/jpeg',
+                            base64: img.base64,
+                        };
+                    }
+                } catch (imgErr) {
+                    console.warn('[SignatureModal] ImagePicker fallback error:', imgErr);
+                }
             }
 
             if (pickedAsset) {
                 setUploadedImageUri(pickedAsset.uri);
-                if (pickedAsset.base64) {
-                    const mime = pickedAsset.mimeType || 'image/png';
-                    setUploadedBase64(`data:${mime};base64,${pickedAsset.base64}`);
+
+                // Determine MIME type
+                const lowerName = (pickedAsset.name || '').toLowerCase();
+                const rawMime = (pickedAsset.mimeType || '').toLowerCase();
+                let mime = 'image/jpeg';
+
+                if (lowerName.endsWith('.pdf') || rawMime.includes('pdf')) {
+                    mime = 'application/pdf';
+                } else if (lowerName.endsWith('.png') || rawMime.includes('png')) {
+                    mime = 'image/png';
+                } else if (lowerName.endsWith('.heic') || lowerName.endsWith('.heif') || rawMime.includes('heic') || rawMime.includes('heif')) {
+                    mime = 'image/heic';
                 } else {
-                    // Convert URI to base64 via FileSystem if base64 not provided directly
+                    mime = 'image/jpeg';
+                }
+
+                let base64String = pickedAsset.base64;
+
+                // If base64 was not provided by picker, read file content
+                if (!base64String) {
                     try {
                         const FileSystem = await import('expo-file-system');
-                        const base64Data = await FileSystem.readAsStringAsync(pickedAsset.uri, {
-                            encoding: 'base64',
+                        base64String = await FileSystem.readAsStringAsync(pickedAsset.uri, {
+                            encoding: 'base64' as any,
                         });
-                        const mime = pickedAsset.mimeType || 'image/png';
-                        setUploadedBase64(`data:${mime};base64,${base64Data}`);
-                    } catch {
-                        setUploadedBase64(pickedAsset.uri);
+                    } catch (readErr) {
+                        console.warn('[SignatureModal] FileSystem.readAsStringAsync error:', readErr);
                     }
+                }
+
+                // If still no base64, attempt blob conversion (common on Web and modern Hermes)
+                if (!base64String) {
+                    try {
+                        const response = await fetch(pickedAsset.uri);
+                        const blob = await response.blob();
+                        base64String = await new Promise<string | null>((resolve) => {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                                const result = reader.result;
+                                if (typeof result === 'string') {
+                                    resolve(result.replace(/^data:[^;]+;base64,/, ''));
+                                } else {
+                                    resolve(null);
+                                }
+                            };
+                            reader.onerror = () => resolve(null);
+                            reader.readAsDataURL(blob);
+                        });
+                    } catch (blobErr) {
+                        console.warn('[SignatureModal] FileReader fallback error:', blobErr);
+                    }
+                }
+
+                if (base64String) {
+                    const cleanBase64 = base64String.replace(/^data:[^;]+;base64,/, '');
+                    setUploadedBase64(`data:${mime};base64,${cleanBase64}`);
+                    setError(null);
+                } else {
+                    // Fallback to the local file URI if base64 conversion is unsupported on device
+                    setUploadedBase64(pickedAsset.uri);
+                    setError(null);
                 }
             }
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : String(err);
-            setError(msg || 'Failed to select signature image. Please use Draw or Type tab.');
+            setError(msg || 'Failed to select signature file. Please try again.');
         }
     };
 
@@ -166,6 +251,15 @@ export function SignatureModal({ visible, onClose, onSave }: Props) {
             const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 160" width="320" height="160">${svgPaths}</svg>`;
             const signatureData = `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 
+            // Upload drawn signature to AWS S3 bucket
+            try {
+                const { uploadFileToS3 } = await import('../api/s3ComplianceService');
+                const s3Key = `signatures/signature_${Date.now()}.svg`;
+                await uploadFileToS3(s3Key, svg, 'image/svg+xml');
+            } catch (s3Err) {
+                console.warn('Direct S3 signature upload backup error:', s3Err);
+            }
+
             await onSave(signatureData);
             onClose();
         } catch (err: unknown) {
@@ -185,6 +279,16 @@ export function SignatureModal({ visible, onClose, onSave }: Props) {
             setError(null);
             setIsSaving(true);
             const signatureData = `data:text/plain;charset=utf-8,${encodeURIComponent(typedName.trim())}`;
+
+            // Upload typed signature to AWS S3 bucket
+            try {
+                const { uploadFileToS3 } = await import('../api/s3ComplianceService');
+                const s3Key = `signatures/signature_${Date.now()}.txt`;
+                await uploadFileToS3(s3Key, typedName.trim(), 'text/plain');
+            } catch (s3Err) {
+                console.warn('Direct S3 signature upload backup error:', s3Err);
+            }
+
             await onSave(signatureData);
             onClose();
         } catch (err: unknown) {
@@ -195,7 +299,7 @@ export function SignatureModal({ visible, onClose, onSave }: Props) {
     };
 
     const handleSaveUploaded = async () => {
-        if (!uploadedBase64) {
+        if (!uploadedBase64 && !uploadedImageUri) {
             setError('Please select an image of your signature first.');
             return;
         }
@@ -204,18 +308,55 @@ export function SignatureModal({ visible, onClose, onSave }: Props) {
             setError(null);
             setIsSaving(true);
 
-            let signatureResult = uploadedBase64;
-            try {
-                const { uploadFileToS3 } = await import('../api/s3ComplianceService');
-                const s3Key = `signatures/signature_${Date.now()}.png`;
-                const uploadRes = await uploadFileToS3(s3Key, uploadedBase64, 'image/png');
-                if (uploadRes.success) {
-                    signatureResult = uploadRes.url;
+            // Determine mime type and file extension for S3
+            let ext = 'jpg';
+            let mimeType = 'image/jpeg';
+            if (uploadedBase64) {
+                if (uploadedBase64.startsWith('data:image/png')) {
+                    ext = 'png';
+                    mimeType = 'image/png';
+                } else if (uploadedBase64.startsWith('data:image/jpeg') || uploadedBase64.startsWith('data:image/jpg')) {
+                    ext = 'jpg';
+                    mimeType = 'image/jpeg';
+                } else if (uploadedBase64.startsWith('data:image/heic') || uploadedBase64.startsWith('data:image/heif')) {
+                    ext = 'heic';
+                    mimeType = 'image/heic';
+                } else if (uploadedBase64.startsWith('data:application/pdf')) {
+                    ext = 'pdf';
+                    mimeType = 'application/pdf';
                 }
-            } catch (s3Err) {
-                console.warn('Direct S3 signature upload fallback:', s3Err);
+            } else if (uploadedImageUri) {
+                const lower = uploadedImageUri.toLowerCase();
+                if (lower.endsWith('.png')) {
+                    ext = 'png';
+                    mimeType = 'image/png';
+                } else if (lower.endsWith('.pdf')) {
+                    ext = 'pdf';
+                    mimeType = 'application/pdf';
+                }
             }
 
+            let signatureResult = uploadedBase64 || uploadedImageUri || '';
+
+            // 1. Upload directly to AWS S3 bucket structured by patient ID
+            try {
+                const { uploadFileToS3 } = await import('../api/s3ComplianceService');
+                const patientPrefix = patientId ? `signatures/patient_${patientId}` : 'signatures';
+                const s3Key = `${patientPrefix}/signature_${Date.now()}.${ext}`;
+
+                // Prefer uploadedBase64 if available, or fetch file URI into binary
+                const uploadPayload = uploadedBase64 || uploadedImageUri || '';
+                const uploadResult = await uploadFileToS3(s3Key, uploadPayload, mimeType);
+
+                if (uploadResult.success && uploadResult.url) {
+                    // Use S3 URL
+                    signatureResult = uploadResult.url;
+                }
+            } catch (s3Err) {
+                console.warn('Direct S3 signature upload backup error:', s3Err);
+            }
+
+            // 2. Save signature data (S3 URL or compact data) to profile
             await onSave(signatureResult);
             onClose();
         } catch (err: unknown) {
@@ -370,23 +511,37 @@ export function SignatureModal({ visible, onClose, onSave }: Props) {
                             </View>
                         ) : (
                             <View style={styles.contentWrap}>
-                                <Text style={styles.subtext}>Upload an image of your handwritten signature (PNG or JPG).</Text>
+                                <Text style={styles.subtext}>
+                                    Upload an image or document of your signature (PNG, JPG, HEIC or PDF).
+                                </Text>
                                 <Pressable
                                     onPress={handlePickImage}
                                     style={({ pressed }) => [styles.uploadDropzone, pressed && styles.pressed]}
                                 >
                                     <Text style={styles.uploadIcon}>📤</Text>
-                                    <Text style={styles.uploadLabel}>Click to upload signature image</Text>
-                                    <Text style={styles.uploadHint}>PNG, JPEG or JPG (max 5MB)</Text>
+                                    <Text style={styles.uploadLabel}>Click to upload signature</Text>
+                                    <Text style={styles.uploadHint}>PNG, JPEG, JPG, HEIC or PDF (max 10MB)</Text>
                                 </Pressable>
 
                                 {uploadedImageUri ? (
                                     <View style={styles.uploadPreview}>
-                                        <Image
-                                            resizeMode="contain"
-                                            source={{ uri: uploadedImageUri }}
-                                            style={styles.uploadPreviewImg}
-                                        />
+                                        {uploadedImageUri.toLowerCase().endsWith('.pdf') || (uploadedBase64 && uploadedBase64.startsWith('data:application/pdf')) ? (
+                                            <View style={{ alignItems: 'center', justifyContent: 'center', padding: 12 }}>
+                                                <Text style={{ fontSize: 28, marginBottom: 4 }}>📄</Text>
+                                                <Text style={{ fontSize: 13, fontWeight: '700', color: colors.foreground }}>
+                                                    PDF Signature Document Selected
+                                                </Text>
+                                                <Text style={{ fontSize: 11, color: colors.mutedForeground, marginTop: 2 }}>
+                                                    Ready to save
+                                                </Text>
+                                            </View>
+                                        ) : (
+                                            <Image
+                                                resizeMode="contain"
+                                                source={{ uri: uploadedImageUri }}
+                                                style={styles.uploadPreviewImg}
+                                            />
+                                        )}
                                     </View>
                                 ) : null}
 

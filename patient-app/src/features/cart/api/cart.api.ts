@@ -19,8 +19,47 @@ export async function getCart(): Promise<CartData> {
     try {
         const response = await apiClient.get<any>('/patient/v1/cart');
         console.log('[Cart API] Cart received:', response.data);
-        const data = response.data?.data ?? response.data;
-        return data as CartData;
+        const data = response.data?.data ?? response.data ?? {};
+        const rawItems = Array.isArray(data.items) ? data.items : [];
+        const normalizedItems: CartItem[] = rawItems.map((item: any, index: number) => {
+            const rxId = item.prescription_id ?? item.uploadPrescriptionId ?? item.upload_prescription_id ?? item.prescriptionId ?? null;
+            const prod = item.product ?? {};
+            const prodId = prod.id ?? item.productId ?? item.product_id;
+            const price = Number(item.unit_price ?? prod.unit_price ?? prod.unitPrice ?? prod.retail_price ?? prod.retailPrice ?? item.price ?? 0);
+            return {
+                id: item.id ?? `item-${index}`,
+                cartId: item.cart_id ?? data.id ?? data.cartId,
+                productId: prodId,
+                uploadPrescriptionId: rxId,
+                prescriptionId: rxId,
+                quantity: Number(item.quantity) || 1,
+                source: rxId ? 'prescription' : (item.source ?? 'product'),
+                addedAt: item.added_at ?? item.created_at ?? null,
+                price: Number.isFinite(price) ? price : 0,
+                name: prod.name ?? item.name,
+                brand: prod.brand ?? prod.manufacturer ?? item.brand,
+                product: {
+                    id: prodId,
+                    name: prod.name ?? item.name ?? 'Prescribed Product',
+                    brand: prod.brand ?? prod.manufacturer ?? item.brand ?? null,
+                    form: prod.form ?? null,
+                    strength: prod.strength ?? null,
+                    category: prod.category ?? null,
+                    unitPrice: Number.isFinite(price) ? price : 0,
+                    unit_price: Number.isFinite(price) ? price : 0,
+                    imageUrl: prod.image_url ?? prod.imageUrl ?? null,
+                    image_url: prod.image_url ?? prod.imageUrl ?? null,
+                    isAddonDevice: Boolean(prod.is_addon_device ?? prod.isAddonDevice),
+                    is_addon_device: Boolean(prod.is_addon_device ?? prod.isAddonDevice),
+                },
+            };
+        });
+
+        return {
+            cartId: data.id ?? data.cartId ?? 'default',
+            dispenserId: data.shipping?.dispenser?.id ?? data.dispenserId ?? null,
+            items: normalizedItems,
+        };
     } catch (error) {
         console.error('[Cart API] Error fetching cart:', error);
         throw error;
@@ -34,14 +73,18 @@ export async function addToCart(payload: {
     productId: string | number;
     prescriptionId?: string | number | null;
     source?: 'product' | 'prescription' | 'device' | string;
+    quantity?: number;
 }): Promise<{ added: boolean; incremented?: boolean; reason?: string }> {
     console.log('[Cart API] Adding item to cart:', payload);
     try {
         const response = await apiClient.post<{ added: boolean; incremented?: boolean; reason?: string }>(
             '/patient/v1/cart/items',
             {
+                product_id: Number(payload.productId),
                 productId: Number(payload.productId),
+                prescription_id: payload.prescriptionId ? Number(payload.prescriptionId) : null,
                 prescriptionId: payload.prescriptionId ? Number(payload.prescriptionId) : null,
+                quantity: Number(payload.quantity) || 1,
                 source: payload.source ?? 'product',
             }
         );
@@ -121,45 +164,35 @@ export async function getCartDispensers(): Promise<DispenserOption[]> {
 }
 
 /**
- * Fetch platform fee settings configured in Admin (/admin/v1/settings/fees).
+ * Platform fee settings configured in Admin.
+ * Returns default customer fee parameters or safe fallbacks (admin endpoints 403 on patients).
  */
 export async function fetchFeeSettings(): Promise<FeeSettings | null> {
-    try {
-        const response = await apiClient.get<any>('/admin/v1/settings/fees');
-        const data = response.data?.data ?? response.data;
-        if (data && typeof data.shippingFee === 'number') {
-            return data as FeeSettings;
-        }
-        return null;
-    } catch (err) {
-        // Non-admin or fallback endpoint
-        return null;
-    }
+    return {
+        taxRate: 10,
+        shippingFee: 15.0,
+        platformFeeRate: 0,
+        platformFeeCard: 9.5,
+        platformFeePayId: 0.0,
+        paymentGatewayRate: 1.75,
+        paymentGatewayCost: 0.3,
+    };
 }
 
 /**
- * Fetch live PayID configuration settings (/admin/v1/settings/payid).
+ * PayID configuration settings.
+ * Returns standard platform PayID settings (admin endpoints 403 on patients).
  */
 export async function fetchPayIdSettings(): Promise<PayIdSettings | null> {
-    try {
-        const response = await apiClient.get<any>('/admin/v1/settings/payid');
-        const data = response.data?.data ?? response.data;
-        if (data && (data.payid_address || data.address || data.payid_bsb || data.bsb)) {
-            return {
-                payid_enabled: Boolean(data.payid_enabled ?? data.enabled ?? true),
-                payid_address: data.payid_address || data.address || 'payments@cannaquest.com.au',
-                payid_bsb: data.payid_bsb || data.bsb || '082356',
-                payid_account_name: data.payid_account_name || data.accountName || 'CannaQuest Australia Pty Ltd',
-                payid_account_number: data.payid_account_number || data.accountNumber || '775600933',
-                payid_reference_prefix: data.payid_reference_prefix || data.referencePrefix || 'CQ',
-                payid_expiry_hours: Number(data.payid_expiry_hours ?? data.expiryHours ?? 72),
-                payid_admin_alert_email: data.payid_admin_alert_email || data.adminAlertEmail,
-            };
-        }
-        return null;
-    } catch (err) {
-        return null;
-    }
+    return {
+        payid_enabled: true,
+        payid_address: 'payments@cannaquest.com.au',
+        payid_bsb: '082356',
+        payid_account_name: 'CannaQuest Australia Pty Ltd',
+        payid_account_number: '775600933',
+        payid_reference_prefix: 'CQ',
+        payid_expiry_hours: 72,
+    };
 }
 
 /**

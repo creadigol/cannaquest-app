@@ -38,10 +38,22 @@ export type CareJourney = {
  */
 export type OrderablePrescription = {
   id: string;
+  prescriptionId?: string;
+  productId?: string;
   name: string;
-  strength?: string;
+  form?: string | null;
+  brand?: string | null;
+  manufacturer?: string | null;
+  strength?: string | null;
+  packageSize?: string | null;
   remainingRepeats?: number;
-  unitPrice?: number;
+  repeatTimes?: number;
+  repeatsFilled?: number;
+  unitPrice?: number | null;
+  thcContent?: number | string | null;
+  cbdContent?: number | string | null;
+  canOrder?: boolean;
+  imageUrl?: string | null;
 };
 
 /**

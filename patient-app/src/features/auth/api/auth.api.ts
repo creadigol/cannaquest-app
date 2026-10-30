@@ -102,12 +102,38 @@ export async function login(payload: LoginPayload): Promise<LoginResult> {
   }
   console.log(`========================================\n`);
 
-  // 1. Direct token returned (e.g. requires_otp: false / exempt from OTP)
-  if (data && (data.requires_otp === false || data.requiresOtp === false || typeof data.accessToken === 'string')) {
-    return {
-      requiresOtp: false,
-      session: readSession(data),
-    };
+  // 1. Check if user is exempt from OTP or direct token returned
+  const isOtpExempt =
+    Boolean(data) &&
+    (data?.requires_otp === false ||
+      data?.requiresOtp === false ||
+      data?.skip_otp === true ||
+      data?.skipOtp === true ||
+      data?.is_exempt === true ||
+      data?.exempt === true);
+
+  if (data && (isOtpExempt || typeof data.accessToken === 'string')) {
+    // If tokens are directly present in login response:
+    try {
+      const session = readSession(data);
+      return {
+        requiresOtp: false,
+        session,
+      };
+    } catch {
+      // If tokens not in response but otpSessionId is returned for an exempt user, auto-verify with code: ''
+      if (typeof data.otpSessionId === 'string') {
+        try {
+          const session = await verifyOtp({ otpSessionId: data.otpSessionId as string, code: '' });
+          return {
+            requiresOtp: false,
+            session,
+          };
+        } catch (e) {
+          if (__DEV__) console.warn('[Auth API] Auto-verification for exempt account failed:', e);
+        }
+      }
+    }
   }
 
   // 2. Standard flow: returned an otpSessionId
@@ -119,19 +145,6 @@ export async function login(payload: LoginPayload): Promise<LoginResult> {
         : typeof data.remember_token === 'string'
         ? (data.remember_token as string)
         : null;
-
-    // Check if account is configured to skip OTP (can auto-verify with empty code)
-    if (data.skip_otp === true || data.skipOtp === true || data.is_exempt === true || data.exempt === true) {
-      try {
-        const session = await verifyOtp({ otpSessionId, code: '' });
-        return {
-          requiresOtp: false,
-          session,
-        };
-      } catch (e) {
-        if (__DEV__) console.warn('[Auth API] Auto-verification for exempt account failed:', e);
-      }
-    }
 
     // Check destination on file from backend
     let destInfo: { email?: string; phone?: string } | null = null;

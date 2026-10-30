@@ -30,9 +30,9 @@ const CATEGORY_IMAGES: Record<string, any> = {
   device: require('../../../../assets/images/product-categories/device.webp'),
 };
 
-import { getS3PresignedUrl } from '@/features/customer/api/s3ComplianceService';
+import { getS3PresignedUrl, S3_BASE_URL } from '@/features/customer/api/s3ComplianceService';
 
-const S3_BUCKET_URL = 'https://cannaquest-storage.s3.ap-southeast-2.amazonaws.com';
+const S3_BUCKET_URL = S3_BASE_URL;
 
 function getProductImageSource(product: Product): { uri: string } | any {
   const rawUrl = product.image_url ?? product.imageUrl ?? product.image;

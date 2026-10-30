@@ -96,17 +96,40 @@ export async function getOrders(tab: OrdersTab = 'active', search?: string): Pro
             );
             const rawSubtotal = Number(item.subtotal || 0);
             const subtotal = rawSubtotal > 0 ? rawSubtotal : itemsTotal;
-            const shippingFee = Number(item.shippingFee || item.shipping_fee || 0);
-            const platformFee = Number(item.platformFee || item.platform_fee || 0);
+            const isPayid = (item.paymentMethod || item.payment_method) === 'payid';
+            const isPickup = item.isPickup ?? item.is_pickup ?? false;
+
+            let shippingFee = Number(item.shippingFee || item.shipping_fee || 0);
+            if (shippingFee === 0 && !isPickup) {
+                shippingFee = 15.00;
+            }
+
+            let platformFee = Number(item.platformFee || item.platform_fee || 0);
+            if (isPayid) {
+                platformFee = 0.00;
+            } else if (platformFee === 0) {
+                platformFee = 9.50;
+            }
+
             const pharmacistFee = Number(item.pharmacistFee || item.pharmacist_fee || 0);
-            const tax = Number(item.tax || 0);
-            const paymentGatewayCost = Number(item.paymentGatewayCost || item.payment_gateway_cost || 0);
             
-            // If items subtotal is calculated and greater than totalAmount (e.g. $80 anomaly), use items subtotal + fees
+            let tax = Number(item.tax || 0);
+            if (tax === 0 || isPayid) {
+                tax = Number((subtotal * 0.10).toFixed(2));
+            }
+
+            let paymentGatewayCost = Number(item.paymentGatewayCost || item.payment_gateway_cost || 0);
+            if (isPayid) {
+                paymentGatewayCost = 0.00;
+            }
+
+            const calculatedTotal = Number((subtotal + shippingFee + platformFee + pharmacistFee + tax + paymentGatewayCost).toFixed(2));
             const apiTotal = Number(item.totalAmount ?? item.total_amount ?? 0);
-            const calculatedTotal = subtotal + shippingFee + platformFee + pharmacistFee + tax + paymentGatewayCost;
-            const totalAmount = (subtotal > 0 && subtotal > apiTotal)
-                ? (calculatedTotal > subtotal ? calculatedTotal : subtotal + 15 + 9.5 + 2.45)
+            
+            const totalAmount = isPayid
+                ? calculatedTotal
+                : (subtotal > 0 && subtotal > apiTotal)
+                ? (calculatedTotal > subtotal ? calculatedTotal : Number((subtotal + 15 + 9.5 + 2.45).toFixed(2)))
                 : (apiTotal > 0 && apiTotal !== 80 ? apiTotal : (calculatedTotal > 0 ? calculatedTotal : 0));
 
             return {
@@ -118,6 +141,7 @@ export async function getOrders(tab: OrdersTab = 'active', search?: string): Pro
                 status: item.latestStatus || item.status,
                 payment_method: item.paymentMethod || item.payment_method,
                 payid_reference: item.payidReference || item.payid_reference,
+                payid_expires_at: item.payidExpiresAt || item.payid_expires_at || item.expiresAt || item.expires_at || null,
                 shipping_summary: item.shippingSummary || item.shipping_summary,
                 tracking_url: item.trackingUrl || item.tracking_url,
                 is_active: item.isActive ?? item.is_active,
@@ -177,6 +201,7 @@ export async function getOrderDetail(uuid: string): Promise<OrderDetail> {
             status: item.latestStatus || item.status,
             payment_method: item.paymentMethod || item.payment_method,
             payid_reference: item.payidReference || item.payid_reference,
+            payid_expires_at: item.payidExpiresAt || item.payid_expires_at || item.expiresAt || item.expires_at || null,
             shipping_summary: item.shippingSummary || item.shipping_summary,
             tracking_url: item.trackingUrl || item.tracking_url,
             is_active: item.isActive ?? item.is_active,
@@ -205,24 +230,28 @@ export async function getOrderDetail(uuid: string): Promise<OrderDetail> {
                 }
 
                 const pharmacistFee = Number(item.pharmacistFee ?? item.pharmacist_fee ?? txn?.pharmacist_fee ?? 0);
+                const taxRate = feeSettings?.taxRate ?? 10;
                 let tax = Number(item.tax ?? txn?.tax ?? 0);
-                if (tax === 0) {
-                    const taxRate = feeSettings?.taxRate ?? 10;
-                    tax = Number((((shippingFee + platformFee + pharmacistFee) * taxRate) / 100).toFixed(2));
+                if (tax === 0 || isPayid) {
+                    tax = Number((subtotal * (taxRate / 100)).toFixed(2));
                 }
 
                 let paymentGatewayCost = Number(item.paymentGatewayCost ?? item.payment_gateway_cost ?? txn?.payment_gateway_cost ?? 0);
                 if (isPayid) {
                     paymentGatewayCost = 0.00;
+                    platformFee = 0.00;
                 } else if (paymentGatewayCost === 0 && feeSettings) {
                     const preGatewayTotal = subtotal + shippingFee + platformFee + pharmacistFee + tax;
                     paymentGatewayCost = Number((((preGatewayTotal * feeSettings.paymentGatewayRate) / 100) + feeSettings.paymentGatewayCost).toFixed(2));
                 }
 
-                const calculatedTotal = subtotal + shippingFee + platformFee + pharmacistFee + tax + paymentGatewayCost;
+                const calculatedTotal = Number((subtotal + shippingFee + platformFee + pharmacistFee + tax + paymentGatewayCost).toFixed(2));
                 const apiTotal = Number(item.totalAmount ?? item.total_amount ?? 0);
                 const txnAmount = Number(txn?.amount ?? 0);
 
+                if (isPayid) {
+                    return calculatedTotal;
+                }
                 if (txnAmount > 0 && Math.abs(txnAmount - calculatedTotal) < 1) {
                     return txnAmount;
                 }
@@ -296,25 +325,28 @@ export async function getOrderDetail(uuid: string): Promise<OrderDetail> {
                 }
 
                 let pharmacistFee = Number(item.pharmacistFee ?? item.pharmacist_fee ?? txn?.pharmacist_fee ?? 0);
+                const taxRate = feeSettings?.taxRate ?? 10;
                 let tax = Number(item.tax ?? txn?.tax ?? 0);
-                if (tax === 0) {
-                    const taxRate = feeSettings?.taxRate ?? 10;
-                    tax = Number((((shippingFee + platformFee + pharmacistFee) * taxRate) / 100).toFixed(2));
+                if (tax === 0 || isPayid) {
+                    tax = Number((subtotal * (taxRate / 100)).toFixed(2));
                 }
 
                 let paymentGatewayCost = Number(item.paymentGatewayCost ?? item.payment_gateway_cost ?? txn?.payment_gateway_cost ?? 0);
                 if (isPayid) {
                     paymentGatewayCost = 0.00;
+                    platformFee = 0.00;
                 } else if (paymentGatewayCost === 0 && feeSettings) {
                     const preGatewayTotal = subtotal + shippingFee + platformFee + pharmacistFee + tax;
                     paymentGatewayCost = Number((((preGatewayTotal * feeSettings.paymentGatewayRate) / 100) + feeSettings.paymentGatewayCost).toFixed(2));
                 }
 
-                const calculatedTotal = subtotal + shippingFee + platformFee + pharmacistFee + tax + paymentGatewayCost;
+                const calculatedTotal = Number((subtotal + shippingFee + platformFee + pharmacistFee + tax + paymentGatewayCost).toFixed(2));
                 const apiTotal = Number(item.totalAmount ?? item.total_amount ?? 0);
                 const txnAmount = Number(txn?.amount ?? 0);
 
-                const finalTotal = txnAmount > 0 && Math.abs(txnAmount - calculatedTotal) < 1
+                const finalTotal = isPayid
+                    ? calculatedTotal
+                    : txnAmount > 0 && Math.abs(txnAmount - calculatedTotal) < 1
                     ? txnAmount
                     : calculatedTotal > 0
                     ? calculatedTotal

@@ -109,7 +109,7 @@ export async function selectPrescriptionPrescriber(
 ): Promise<{ message: string; id: string; status: string }> {
   try {
     console.log('[Prescriptions API] Nominating prescriber:', { prescriptionId, prescriberId });
-    const response = await apiClient.post<
+    const response = await apiClient.put<
       ApiResponse<{ message: string; id: string; status: string }>
     >(`/patient/v1/prescriptions/${prescriptionId}/select-prescriber`, {
       prescriberId: String(prescriberId),

@@ -28,7 +28,7 @@ const GROUP_CONFIG = [
 ] as const;
 
 export function PrescriptionsScreenContent() {
-  const { refreshCart } = useCart();
+  const { cart, refreshCart } = useCart();
   const [activeTab, setActiveTab] = useState<'current' | 'past'>('current');
   const [searchQuery, setSearchQuery] = useState('');
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
@@ -118,7 +118,15 @@ export function PrescriptionsScreenContent() {
       );
     }
 
-    if (activeTab === 'past') {
+  const cartItems = Array.isArray(cart?.items) ? cart.items : [];
+  const isRxInCart = (rxId: string | number) => {
+    return cartItems.some(
+      (item) =>
+        String(item.uploadPrescriptionId || item.prescriptionId || '') === String(rxId)
+    );
+  };
+
+  if (activeTab === 'past') {
       return (
         <View style={styles.sectionWrap}>
           <Text style={styles.sectionTitle}>PAST PRESCRIPTIONS ({prescriptions.length})</Text>
@@ -126,6 +134,7 @@ export function PrescriptionsScreenContent() {
             <PrescriptionCard
               key={rx.id}
               prescription={rx}
+              isInCart={isRxInCart(rx.id)}
               onAddToCart={handleAddToCart}
               onSelectPrescriber={handleSelectPrescriber}
               onViewOrder={handleViewOrder}
@@ -150,6 +159,7 @@ export function PrescriptionsScreenContent() {
                 <PrescriptionCard
                   key={rx.id}
                   prescription={rx}
+                  isInCart={isRxInCart(rx.id)}
                   onAddToCart={handleAddToCart}
                   onSelectPrescriber={handleSelectPrescriber}
                   onViewOrder={handleViewOrder}

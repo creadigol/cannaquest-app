@@ -452,6 +452,7 @@ export default function ProfileTabScreen() {
                         onSave={async (data) => {
                             await saveSignature.mutateAsync({ signatureData: data });
                         }}
+                        patientId={(customer as any).id || (customer as any).userId || (customer as any).user_id}
                         visible={showSignatureModal}
                     />
 
@@ -683,15 +684,16 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(0, 0, 0, 0.06)',
         borderRadius: radii.lg,
         borderWidth: 1,
-        height: 76,
         justifyContent: 'center',
         marginBottom: 16,
         marginHorizontal: 16,
+        minHeight: 88,
+        paddingVertical: 10,
     },
 
     sigImage: {
-        height: 52,
-        width: '80%',
+        height: 60,
+        width: '85%',
     },
     sigTypedPreview: {
         color: colors.foreground,

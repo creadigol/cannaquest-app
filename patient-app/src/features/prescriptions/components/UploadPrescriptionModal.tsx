@@ -28,17 +28,39 @@ export function UploadPrescriptionModal({ visible, onClose, onSuccess }: Props) 
       setError(null);
       const { requireOptionalNativeModule } = await import('expo-modules-core');
 
+      // Allowed mime types & extensions: PDF, JPG, PNG only
+      const ALLOWED_MIME_TYPES = [
+        'application/pdf',
+        'image/jpeg',
+        'image/jpg',
+        'image/png',
+      ];
+      const ALLOWED_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png'];
+
+      const isAllowedFile = (name?: string, mime?: string): boolean => {
+        const lowerName = (name || '').toLowerCase();
+        const hasValidExt = ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+        const hasValidMime = mime ? ALLOWED_MIME_TYPES.includes(mime.toLowerCase()) : false;
+        return hasValidExt || hasValidMime;
+      };
+
       // 1. Try DocumentPicker if compiled into binary
       const docModule = requireOptionalNativeModule('ExpoDocumentPicker');
       if (docModule) {
         const DocumentPicker = await import('expo-document-picker');
         const result = await DocumentPicker.getDocumentAsync({
-          type: ['application/pdf', 'image/*'],
+          type: ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png'],
           copyToCacheDirectory: true,
         });
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
-          setSelectedFile(result.assets[0]);
+          const file = result.assets[0];
+          if (!isAllowedFile(file.name, file.mimeType)) {
+            setError('Invalid file type. Only PDF, JPG, and PNG documents are accepted.');
+            setSelectedFile(null);
+            return;
+          }
+          setSelectedFile(file);
           return;
         }
         return;
@@ -58,10 +80,19 @@ export function UploadPrescriptionModal({ visible, onClose, onSuccess }: Props) 
 
         if (!imgResult.canceled && imgResult.assets && imgResult.assets.length > 0) {
           const asset = imgResult.assets[0];
+          const fileName = asset.fileName || 'prescription.jpg';
+          const mimeType = asset.mimeType || 'image/jpeg';
+
+          if (!isAllowedFile(fileName, mimeType)) {
+            setError('Invalid file type. Only PDF, JPG, and PNG images are accepted.');
+            setSelectedFile(null);
+            return;
+          }
+
           setSelectedFile({
             uri: asset.uri,
-            name: asset.fileName || 'prescription.jpg',
-            mimeType: asset.mimeType || 'image/jpeg',
+            name: fileName,
+            mimeType: mimeType,
             size: asset.fileSize,
           });
           return;
@@ -84,6 +115,21 @@ export function UploadPrescriptionModal({ visible, onClose, onSuccess }: Props) 
 
   const handleUpload = async () => {
     if (!selectedFile) return;
+
+    // Strict validation before upload
+    const lowerName = (selectedFile.name || '').toLowerCase();
+    const isAllowedExt = ['.pdf', '.jpg', '.jpeg', '.png'].some((ext) => lowerName.endsWith(ext));
+    const isAllowedMime = [
+      'application/pdf',
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+    ].includes((selectedFile.mimeType || '').toLowerCase());
+
+    if (!isAllowedExt && !isAllowedMime) {
+      setError('Strict validation error: Only PDF, JPG, and PNG documents can be uploaded.');
+      return;
+    }
 
     try {
       setUploading(true);

@@ -73,6 +73,7 @@ export default function TabsLayout() {
             <Tabs.Screen name="consults" options={{ title: 'Consults', tabBarIcon: ({ focused }) => <TabIcon focused={focused} icon="🩺" /> }} />
             <Tabs.Screen name="scripts" options={{ title: 'Scripts', tabBarIcon: ({ focused }) => <TabIcon focused={focused} icon="📄" /> }} />
             <Tabs.Screen name="products" options={{ title: 'Products', tabBarIcon: ({ focused }) => <TabIcon focused={focused} icon="🛍️" /> }} />
+            <Tabs.Screen name="orders" options={{ title: 'Orders', tabBarIcon: ({ focused }) => <TabIcon focused={focused} icon="📦" /> }} />
             <Tabs.Screen
                 name="cart"
                 options={{
@@ -81,7 +82,6 @@ export default function TabsLayout() {
                 }}
             />
             <Tabs.Screen name="profile" options={{ title: 'Profile', tabBarIcon: ({ focused }) => <TabIcon focused={focused} icon="👤" /> }} />
-            <Tabs.Screen name="orders" options={{ href: null, headerShown: false }} />
         </Tabs>
     );
 }

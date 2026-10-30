@@ -30,6 +30,18 @@ export function OrderDetailModal({ visible, order, onClose, onRefreshNeeded }: P
     const [showPayIdDetails, setShowPayIdDetails] = useState(false);
     const [copiedKey, setCopiedKey] = useState<string | null>(null);
     const [isClaiming, setIsClaiming] = useState(false);
+    const [nowMs, setNowMs] = useState(Date.now());
+
+    const isPayid = order?.payment_method === 'payid';
+
+    // Live ticker for time tracking
+    useEffect(() => {
+        if (!visible || !isPayid) return;
+        const interval = setInterval(() => {
+            setNowMs(Date.now());
+        }, 1000);
+        return () => clearInterval(interval);
+    }, [visible, isPayid]);
 
     const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -93,8 +105,44 @@ export function OrderDetailModal({ visible, order, onClose, onRefreshNeeded }: P
 
     const orderItems = order.items || [];
     const isPickup = order.is_pickup ?? false;
-    const isPayid = order.payment_method === 'payid';
-    const canPay = order.can_pay ?? (isPayid && (order.status === '1' || order.status === 'SUBMITTED'));
+    const payIdExpiryHours = order.payid_settings?.payid_expiry_hours || 72;
+
+    const createdTimeMs = order.created_at ? new Date(order.created_at).getTime() : nowMs;
+    const computedExpiryTime = order.payid_expires_at 
+        ? new Date(order.payid_expires_at).getTime()
+        : (order.created_at ? createdTimeMs + payIdExpiryHours * 60 * 60 * 1000 : null);
+    
+    const isExpired = ['11', 'PAYID_EXPIRED', '3', 'CANCELLED', '5'].includes(String(order.status || '')) ||
+        (isPayid && computedExpiryTime !== null && computedExpiryTime <= nowMs && order.status !== '2' && order.status !== 'PAID');
+    const canPay = !isExpired && (order.can_pay ?? (isPayid && (order.status === '1' || order.status === 'SUBMITTED')));
+
+    // Elapsed percentage and countdown for PayID payment window
+    const totalDurationMs = computedExpiryTime && createdTimeMs ? Math.max(1, computedExpiryTime - createdTimeMs) : (payIdExpiryHours * 3600 * 1000);
+    const elapsedMs = Math.max(0, nowMs - createdTimeMs);
+    const rawProgress = Math.min(100, Math.max(0, (elapsedMs / totalDurationMs) * 100));
+    const progressPercent = isExpired ? 100 : Math.round(rawProgress);
+
+    const msRemaining = computedExpiryTime ? Math.max(0, computedExpiryTime - nowMs) : 0;
+    const hoursRemaining = Math.floor(msRemaining / (1000 * 60 * 60));
+    const minutesRemaining = Math.floor((msRemaining % (1000 * 60 * 60)) / (1000 * 60));
+    const secondsRemaining = Math.floor((msRemaining % (1000 * 60)) / 1000);
+
+    const isUrgent = !isExpired && msRemaining < (24 * 60 * 60 * 1000); // under 24 hours
+    const isCritical = !isExpired && msRemaining < (4 * 60 * 60 * 1000); // under 4 hours
+
+    let countdownBadgeText = 'Active Window';
+    if (isExpired) {
+        countdownBadgeText = 'Window Expired';
+    } else if (hoursRemaining > 24) {
+        const days = Math.floor(hoursRemaining / 24);
+        countdownBadgeText = `${days}d ${hoursRemaining % 24}h remaining`;
+    } else if (hoursRemaining > 0) {
+        countdownBadgeText = `${hoursRemaining}h ${minutesRemaining}m remaining`;
+    } else if (minutesRemaining > 0) {
+        countdownBadgeText = `${minutesRemaining}m ${secondsRemaining}s remaining`;
+    } else {
+        countdownBadgeText = `${secondsRemaining}s remaining`;
+    }
 
     // Pricing breakdown fallback
     const subtotal = order.breakdown?.subtotal ?? order.total_amount;
@@ -108,7 +156,6 @@ export function OrderDetailModal({ visible, order, onClose, onRefreshNeeded }: P
     const payIdBsb = order.payid_settings?.payid_bsb || '082356';
     const payIdAccount = order.payid_settings?.payid_account_number || '775600933';
     const payIdAccountName = order.payid_settings?.payid_account_name || 'CannaQuest Australia Pty Ltd';
-    const payIdExpiryHours = order.payid_settings?.payid_expiry_hours || 72;
     const payIdRef = order.payid_reference || order.uuid;
 
     return (
@@ -513,8 +560,90 @@ export function OrderDetailModal({ visible, order, onClose, onRefreshNeeded }: P
                         </View>
                     </View>
 
+                    {/* ── 5. PayID Expired Banner (if expired) ────────────── */}
+                    {isExpired && isPayid && (
+                        <View style={[styles.payIdPanel, { borderColor: '#ef4444', backgroundColor: '#fef2f2' }]}>
+                            <View style={styles.payIdHeader}>
+                                <View style={[styles.payIdIconCircle, { backgroundColor: '#fee2e2' }]}>
+                                    <Text style={[styles.payIdIcon, { color: '#dc2626' }]}>✕</Text>
+                                </View>
+                                <View style={styles.payIdHeaderTextCol}>
+                                    <Text style={[styles.payIdHeaderTitle, { color: '#991b1b' }]}>PayID Expired</Text>
+                                    <Text style={[styles.payIdHeaderSub, { color: '#b91c1c' }]}>
+                                        Order Cancelled (No Payment Received)
+                                    </Text>
+                                </View>
+                                <View style={[styles.feeFreeBadge, { backgroundColor: '#fee2e2' }]}>
+                                    <Text style={[styles.feeFreeText, { color: '#dc2626' }]}>Expired</Text>
+                                </View>
+                            </View>
+
+                            {/* Payment Expiry Timeline showing closed window */}
+                            <View style={[styles.payIdDeadlineContainer, styles.payIdDeadlineContainerExpired]}>
+                                <View style={styles.payIdDeadlineTop}>
+                                    <View style={[styles.payIdDeadlineClockWrap, styles.payIdDeadlineClockWrapExpired]}>
+                                        <Text style={styles.payIdDeadlineClock}>⌛</Text>
+                                    </View>
+                                    <View style={styles.payIdDeadlineTextWrap}>
+                                        <Text style={[styles.payIdDeadlineTitle, styles.payIdDeadlineTitleExpired]}>
+                                            Payment Window Closed
+                                        </Text>
+                                        <Text style={[styles.payIdDeadlineDays, styles.payIdDeadlineDaysExpired]}>
+                                            Cutoff reached — order cancelled
+                                        </Text>
+                                    </View>
+                                    <View style={[styles.payIdUrgentPill, styles.payIdUrgentPillExpired]}>
+                                        <Text style={[styles.payIdUrgentPillText, styles.payIdUrgentPillTextExpired]}>
+                                            Window Expired
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.payIdTimelineTrack}>
+                                    <View style={[styles.payIdTimelineTrackFill, styles.payIdTimelineTrackFillExpired, { width: '100%' }]} />
+                                </View>
+
+                                <View style={styles.payIdTimelineLabels}>
+                                    <View>
+                                        <Text style={styles.payIdTimelineSub}>Placed</Text>
+                                        <Text style={styles.payIdTimelineVal}>
+                                            {new Date(order.created_at).toLocaleDateString('en-AU', {
+                                                day: 'numeric',
+                                                month: 'short',
+                                            })}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.alignCenter}>
+                                        <Text style={styles.payIdTimelineSub}>Window Progress</Text>
+                                        <Text style={styles.payIdTimelineElapsedText}>100% elapsed</Text>
+                                    </View>
+                                    <View style={styles.alignEnd}>
+                                        <Text style={styles.payIdTimelineSub}>Payment Cutoff</Text>
+                                        <Text style={[styles.payIdTimelineDeadlineHighlight, styles.payIdTimelineDeadlineHighlightExpired]}>
+                                            {computedExpiryTime ? new Date(computedExpiryTime).toLocaleDateString('en-AU', {
+                                                weekday: 'short',
+                                                day: 'numeric',
+                                                month: 'short',
+                                            }) + ' · ' + new Date(computedExpiryTime).toLocaleTimeString('en-AU', {
+                                                hour: 'numeric',
+                                                minute: '2-digit',
+                                                hour12: true,
+                                            }) : 'Cutoff Reached'}
+                                        </Text>
+                                    </View>
+                                </View>
+                            </View>
+
+                            <View style={[styles.importantNoteBox, { backgroundColor: '#ffffff', borderColor: '#fecaca' }]}>
+                                <Text style={[styles.importantNoteText, { color: '#7f1d1d' }]}>
+                                    The payment window for this PayID order has expired. No payment was received within the required window, so order placement has stopped and reserved prescriptions have been released. Please place a new order if you would like to proceed.
+                                </Text>
+                            </View>
+                        </View>
+                    )}
+
                     {/* ── 5. PayID Inline Instructions Panel (if applicable) ─ */}
-                    {canPay && isPayid && showPayIdDetails && (
+                    {!isExpired && canPay && isPayid && showPayIdDetails && (
                         <View style={styles.payIdPanel}>
                             <View style={styles.payIdHeader}>
                                 <View style={styles.payIdIconCircle}>
@@ -532,22 +661,75 @@ export function OrderDetailModal({ visible, order, onClose, onRefreshNeeded }: P
                             </View>
 
                             {/* Payment Expiry Timeline */}
-                            <View style={styles.payIdDeadlineContainer}>
+                            <View style={[
+                                styles.payIdDeadlineContainer,
+                                isExpired && styles.payIdDeadlineContainerExpired,
+                                isCritical && !isExpired && styles.payIdDeadlineContainerCritical,
+                            ]}>
                                 <View style={styles.payIdDeadlineTop}>
-                                    <View style={styles.payIdDeadlineClockWrap}>
-                                        <Text style={styles.payIdDeadlineClock}>⏳</Text>
+                                    <View style={[
+                                        styles.payIdDeadlineClockWrap,
+                                        isExpired && styles.payIdDeadlineClockWrapExpired,
+                                        isCritical && !isExpired && styles.payIdDeadlineClockWrapCritical,
+                                    ]}>
+                                        <Text style={styles.payIdDeadlineClock}>
+                                            {isExpired ? '⌛' : isCritical ? '🔥' : '⏳'}
+                                        </Text>
                                     </View>
                                     <View style={styles.payIdDeadlineTextWrap}>
-                                        <Text style={styles.payIdDeadlineTitle}>Payment Window Active</Text>
-                                        <Text style={styles.payIdDeadlineDays}>Pay within 3 business days</Text>
+                                        <Text style={[
+                                            styles.payIdDeadlineTitle,
+                                            isExpired && styles.payIdDeadlineTitleExpired,
+                                            isCritical && !isExpired && styles.payIdDeadlineTitleCritical,
+                                        ]}>
+                                            {isExpired ? 'Payment Window Closed' : 'Payment Window Active'}
+                                        </Text>
+                                        <Text style={[
+                                            styles.payIdDeadlineDays,
+                                            isExpired && styles.payIdDeadlineDaysExpired,
+                                            isCritical && !isExpired && styles.payIdDeadlineDaysCritical,
+                                        ]}>
+                                            {isExpired
+                                                ? 'Cutoff reached — order cancelled'
+                                                : hoursRemaining >= 24
+                                                ? `Pay within ${Math.ceil(hoursRemaining / 24)} days (${hoursRemaining}h)`
+                                                : `Pay within ${hoursRemaining}h ${minutesRemaining}m`}
+                                        </Text>
                                     </View>
-                                    <View style={styles.payIdUrgentPill}>
-                                        <Text style={styles.payIdUrgentPillText}>Expires Soon</Text>
+                                    <View style={[
+                                        styles.payIdUrgentPill,
+                                        isExpired && styles.payIdUrgentPillExpired,
+                                        isCritical && !isExpired && styles.payIdUrgentPillCritical,
+                                        !isUrgent && !isExpired && styles.payIdUrgentPillActive,
+                                    ]}>
+                                        <Text style={[
+                                            styles.payIdUrgentPillText,
+                                            isExpired && styles.payIdUrgentPillTextExpired,
+                                            isCritical && !isExpired && styles.payIdUrgentPillTextCritical,
+                                            !isUrgent && !isExpired && styles.payIdUrgentPillTextActive,
+                                        ]}>
+                                            {countdownBadgeText}
+                                        </Text>
                                     </View>
                                 </View>
 
+                                {/* Dynamic Visual Timeline Bar */}
                                 <View style={styles.payIdTimelineTrack}>
-                                    <View style={styles.payIdTimelineTrackFill} />
+                                    <View style={[
+                                        styles.payIdTimelineTrackFill,
+                                        { width: `${progressPercent}%` },
+                                        isExpired && styles.payIdTimelineTrackFillExpired,
+                                        isCritical && !isExpired && styles.payIdTimelineTrackFillCritical,
+                                        !isUrgent && !isExpired && styles.payIdTimelineTrackFillNormal,
+                                    ]} />
+                                    {/* Elapsed progress marker */}
+                                    {!isExpired && progressPercent > 5 && progressPercent < 98 && (
+                                        <View style={[
+                                            styles.payIdTimelineMarker,
+                                            { left: `${progressPercent}%` },
+                                            isCritical && styles.payIdTimelineMarkerCritical,
+                                        ]} />
+                                    )}
                                 </View>
 
                                 <View style={styles.payIdTimelineLabels}>
@@ -560,14 +742,28 @@ export function OrderDetailModal({ visible, order, onClose, onRefreshNeeded }: P
                                             })}
                                         </Text>
                                     </View>
+                                    <View style={styles.alignCenter}>
+                                        <Text style={styles.payIdTimelineSub}>Window Progress</Text>
+                                        <Text style={styles.payIdTimelineElapsedText}>
+                                            {progressPercent}% elapsed
+                                        </Text>
+                                    </View>
                                     <View style={styles.alignEnd}>
                                         <Text style={styles.payIdTimelineSub}>Payment Cutoff</Text>
-                                        <Text style={styles.payIdTimelineDeadlineHighlight}>
-                                            {new Date(new Date(order.created_at).getTime() + payIdExpiryHours * 60 * 60 * 1000).toLocaleDateString('en-AU', {
+                                        <Text style={[
+                                            styles.payIdTimelineDeadlineHighlight,
+                                            isExpired && styles.payIdTimelineDeadlineHighlightExpired,
+                                            isCritical && !isExpired && styles.payIdTimelineDeadlineHighlightCritical,
+                                        ]}>
+                                            {computedExpiryTime ? new Date(computedExpiryTime).toLocaleDateString('en-AU', {
                                                 weekday: 'short',
                                                 day: 'numeric',
                                                 month: 'short',
-                                            })} · 5:00 PM AEST
+                                            }) + ' · ' + new Date(computedExpiryTime).toLocaleTimeString('en-AU', {
+                                                hour: 'numeric',
+                                                minute: '2-digit',
+                                                hour12: true,
+                                            }) : '72 Hours'}
                                         </Text>
                                     </View>
                                 </View>
@@ -1009,91 +1205,186 @@ const styles = StyleSheet.create({
         gap: 10,
         padding: spacing.md,
     },
+    alignCenter: {
+        alignItems: 'center',
+    },
     alignEnd: {
         alignItems: 'flex-end',
     },
     payIdDeadlineContainer: {
         backgroundColor: '#fffbeb',
         borderColor: '#fde68a',
-        borderRadius: radii.lg,
+        borderRadius: radii.xl,
         borderWidth: 1,
-        gap: 8,
-        padding: 10,
+        gap: 10,
+        padding: 12,
+        ...shadows.tier1,
+    },
+    payIdDeadlineContainerCritical: {
+        backgroundColor: '#fff7ed',
+        borderColor: '#fdba74',
+    },
+    payIdDeadlineContainerExpired: {
+        backgroundColor: '#fef2f2',
+        borderColor: '#fca5a5',
     },
     payIdDeadlineTop: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 8,
+        gap: 10,
     },
     payIdDeadlineClockWrap: {
         alignItems: 'center',
         backgroundColor: '#fef3c7',
         borderRadius: radii.full,
-        height: 28,
+        height: 32,
         justifyContent: 'center',
-        width: 28,
+        width: 32,
+    },
+    payIdDeadlineClockWrapCritical: {
+        backgroundColor: '#ffedd5',
+    },
+    payIdDeadlineClockWrapExpired: {
+        backgroundColor: '#fee2e2',
     },
     payIdDeadlineClock: {
-        fontSize: 14,
+        fontSize: 16,
     },
     payIdDeadlineTextWrap: {
         flex: 1,
+        gap: 1,
     },
     payIdDeadlineTitle: {
         color: '#78350f',
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: '700',
+    },
+    payIdDeadlineTitleCritical: {
+        color: '#9a3412',
+    },
+    payIdDeadlineTitleExpired: {
+        color: '#991b1b',
     },
     payIdDeadlineDays: {
         color: '#92400e',
         fontSize: 11,
         fontWeight: '600',
     },
+    payIdDeadlineDaysCritical: {
+        color: '#c2410c',
+        fontWeight: '700',
+    },
+    payIdDeadlineDaysExpired: {
+        color: '#b91c1c',
+    },
     payIdUrgentPill: {
         backgroundColor: '#fee2e2',
         borderColor: '#fca5a5',
         borderRadius: radii.full,
         borderWidth: 1,
-        paddingHorizontal: 7,
-        paddingVertical: 2,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+    },
+    payIdUrgentPillActive: {
+        backgroundColor: '#ecfdf5',
+        borderColor: '#a7f3d0',
+    },
+    payIdUrgentPillCritical: {
+        backgroundColor: '#ffedd5',
+        borderColor: '#fdba74',
+    },
+    payIdUrgentPillExpired: {
+        backgroundColor: '#fef2f2',
+        borderColor: '#fca5a5',
     },
     payIdUrgentPillText: {
         color: '#b91c1c',
         fontSize: 10,
         fontWeight: '700',
     },
+    payIdUrgentPillTextActive: {
+        color: '#047857',
+    },
+    payIdUrgentPillTextCritical: {
+        color: '#c2410c',
+    },
+    payIdUrgentPillTextExpired: {
+        color: '#dc2626',
+    },
     payIdTimelineTrack: {
-        backgroundColor: '#fde68a',
+        backgroundColor: '#fef3c7',
+        borderColor: 'rgba(217, 119, 6, 0.2)',
         borderRadius: radii.full,
-        height: 5,
-        overflow: 'hidden',
+        borderWidth: 1,
+        height: 8,
+        position: 'relative',
         width: '100%',
     },
     payIdTimelineTrackFill: {
-        backgroundColor: '#d97706',
+        backgroundColor: '#f59e0b',
         borderRadius: radii.full,
         height: '100%',
-        width: '35%',
+    },
+    payIdTimelineTrackFillNormal: {
+        backgroundColor: '#10b981',
+    },
+    payIdTimelineTrackFillCritical: {
+        backgroundColor: '#ea580c',
+    },
+    payIdTimelineTrackFillExpired: {
+        backgroundColor: '#dc2626',
+    },
+    payIdTimelineMarker: {
+        backgroundColor: '#ffffff',
+        borderColor: '#d97706',
+        borderRadius: radii.full,
+        borderWidth: 2,
+        height: 14,
+        marginTop: -3,
+        position: 'absolute',
+        top: 0,
+        width: 14,
+        marginLeft: -7,
+        ...shadows.tier1,
+    },
+    payIdTimelineMarkerCritical: {
+        borderColor: '#c2410c',
     },
     payIdTimelineLabels: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        marginTop: 2,
     },
     payIdTimelineSub: {
         color: '#78350f',
         fontSize: 9,
-        fontWeight: '600',
+        fontWeight: '700',
+        letterSpacing: 0.3,
         textTransform: 'uppercase',
     },
     payIdTimelineVal: {
         color: colors.foreground,
         fontSize: 11,
         fontWeight: '700',
+        marginTop: 1,
+    },
+    payIdTimelineElapsedText: {
+        color: '#b45309',
+        fontSize: 11,
+        fontWeight: '700',
+        marginTop: 1,
     },
     payIdTimelineDeadlineHighlight: {
         color: '#b45309',
         fontSize: 11,
         fontWeight: '800',
+        marginTop: 1,
+    },
+    payIdTimelineDeadlineHighlightCritical: {
+        color: '#c2410c',
+    },
+    payIdTimelineDeadlineHighlightExpired: {
+        color: '#dc2626',
     },
     placedDate: {
         color: colors.mutedForeground,

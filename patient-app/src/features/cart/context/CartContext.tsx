@@ -48,7 +48,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }, [state.status, refreshCart]);
 
     // Distinct product count in cart (not total units/quantities)
-    const cartCount = (cart?.items || []).length;
+    const cartCount = Array.isArray(cart?.items) ? cart.items.length : 0;
 
     return (
         <CartContext.Provider value={{ cart, cartCount, isLoading, refreshCart }}>
