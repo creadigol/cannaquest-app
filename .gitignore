@@ -16,8 +16,6 @@ package-lock.json.orig
 # ------------------------------------------------------------------------------
 # Environment Variables & Secrets (CRITICAL FOR GITHUB)
 # ------------------------------------------------------------------------------
-.env
-.env.*
 !.env.example
 !.env.testing.example
 *.pem
@@ -67,7 +65,6 @@ paitent-design/
 # ------------------------------------------------------------------------------
 # IDE, Editors & OS Files
 # ------------------------------------------------------------------------------
-.vscode/*
 !.vscode/settings.json
 !.vscode/tasks.json
 !.vscode/launch.json
@@ -91,3 +88,4 @@ tmp/
 temp/
 *.tmp
 *.temp
+config.bat

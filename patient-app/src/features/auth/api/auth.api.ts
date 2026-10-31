@@ -214,12 +214,17 @@ export async function refresh(payload: RefreshPayload) {
   return readSession(payloadOf(response));
 }
 
-export async function getOtpDestination(otpSessionId: string): Promise<{ email?: string; phone?: string } | null> {
+export async function getOtpDestination(otpSessionId: string): Promise<{ email?: string; phone?: string; masked_phone?: string; sms_available?: boolean } | null> {
   try {
-    const response = await apiClient.get<ApiResponse<{ email?: string; phone?: string }>>(
+    const response = await apiClient.get<ApiResponse<{ email?: string; phone?: string; masked_phone?: string; sms_available?: boolean }>>(
       `/patient/v1/auth/otp/destination?otpSessionId=${encodeURIComponent(otpSessionId)}`
     );
-    return payloadOf(response.data);
+    const data = payloadOf(response.data);
+    const phone = data?.phone || data?.masked_phone || undefined;
+    return {
+      ...data,
+      phone,
+    };
   } catch (err) {
     if (__DEV__) console.warn('[Auth API] Failed to fetch OTP destination:', err);
     return null;
