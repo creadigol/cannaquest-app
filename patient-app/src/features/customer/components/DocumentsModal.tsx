@@ -18,6 +18,8 @@ import { useDashboardSummary } from '@/features/dashboard/hooks/useDashboardSumm
 import { SignatureDisplay } from './SignatureDisplay';
 import { fetchSignedDocumentFromS3, uploadSignedDocumentToS3, type SignedPrivacyDocument } from '../api/s3ComplianceService';
 
+import { useAuth } from '@/features/auth/auth.context';
+
 type Props = {
     visible: boolean;
     onClose: () => void;
@@ -27,21 +29,24 @@ export function DocumentsModal({ visible, onClose }: Props) {
     const { data: documents = [], isLoading } = useCustomerDocuments();
     const { data: customer } = useCurrentCustomer();
     const { data: dashboard } = useDashboardSummary();
+    const { state: authState } = useAuth();
 
     const [viewingPrivacyDoc, setViewingPrivacyDoc] = React.useState(false);
     const [s3Doc, setS3Doc] = React.useState<SignedPrivacyDocument | null>(null);
     const [isLoadingS3Doc, setIsLoadingS3Doc] = React.useState(false);
+
+    const activeUserId = customer?.id || (customer as any)?.userId || authState.user?.id;
 
     const hasCompletedPrivacyConsent = Boolean(
         customer?.signature ||
         dashboard?.questionnaireCompleted
     );
 
-    // Fetch or sync the document directly from AWS S3 using user's ID
+    // Fetch or sync the document directly from AWS S3 using authenticated user's ID
     React.useEffect(() => {
-        if (!visible || !hasCompletedPrivacyConsent) return;
+        if (!visible || !hasCompletedPrivacyConsent || !activeUserId) return;
 
-        const userId = customer?.id || 'current';
+        const userId = String(activeUserId);
 
         let isMounted = true;
         setIsLoadingS3Doc(true);
@@ -49,7 +54,8 @@ export function DocumentsModal({ visible, onClose }: Props) {
         fetchSignedDocumentFromS3(userId)
             .then(async (fetched) => {
                 if (!isMounted) return;
-                if (fetched) {
+                // Verify fetched doc belongs to this patient
+                if (fetched && String(fetched.id) === userId) {
                     setS3Doc(fetched);
                 } else if (customer?.signature) {
                     // Upload the document directly to AWS S3 bucket: cannaquest-storage/compliance-forms/signed_documents/{id}
@@ -86,7 +92,7 @@ export function DocumentsModal({ visible, onClose }: Props) {
         return () => {
             isMounted = false;
         };
-    }, [visible, hasCompletedPrivacyConsent, customer?.id, customer?.signature]);
+    }, [visible, hasCompletedPrivacyConsent, activeUserId, customer?.signature]);
 
     const handleOpenDocument = async (url?: string) => {
         if (!url) {

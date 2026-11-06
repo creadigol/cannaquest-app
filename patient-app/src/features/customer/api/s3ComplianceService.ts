@@ -243,6 +243,14 @@ export function getS3PresignedUrl(rawKeyOrUrl: string, expiresInSeconds: number 
     // If it's already a full presigned URL with signature, return as is
     if (trimmed.includes('X-Amz-Signature=')) return trimmed;
 
+    // If it's an HTTP/HTTPS URL that does not belong to AWS S3, return as is
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        const isS3Host = trimmed.includes('.amazonaws.com') || (AWS_CONFIG.bucket && trimmed.includes(AWS_CONFIG.bucket));
+        if (!isS3Host) {
+            return trimmed;
+        }
+    }
+
     // Extract S3 key
     let key = trimmed;
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {

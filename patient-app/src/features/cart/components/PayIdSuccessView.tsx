@@ -205,7 +205,7 @@ export function PayIdSuccessView({ orderInfo, feeBreakdown, onViewOrder, onDone,
                         </Text>
                     </View>
                     <View style={styles.feeFreeBadge}>
-                        <Text style={styles.feeFreeText}>0% Extra Fees</Text>
+                        <Text style={styles.feeFreeText}>No Card Surcharge</Text>
                     </View>
                 </View>
 

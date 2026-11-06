@@ -93,12 +93,14 @@ const styles = StyleSheet.create({
     },
     iconWrap: {
         alignItems: 'center',
-        backgroundColor: 'rgba(14, 48, 23, 0.08)',
-        borderRadius: 10,
+        backgroundColor: 'rgba(14, 48, 23, 0.07)',
+        borderColor: 'rgba(14, 48, 23, 0.06)',
+        borderRadius: 14,
+        borderWidth: 1,
         flexShrink: 0,
-        height: 36,
+        height: 40,
         justifyContent: 'center',
-        width: 36,
+        width: 40,
     },
     iconText: {
         fontSize: 16,
@@ -111,7 +113,8 @@ const styles = StyleSheet.create({
     label: {
         color: colors.foreground,
         fontSize: 14,
-        fontWeight: '600',
+        fontWeight: '700',
+        letterSpacing: -0.1,
     },
     subtitle: {
         color: colors.mutedForeground,
@@ -120,8 +123,8 @@ const styles = StyleSheet.create({
     },
     value: {
         color: colors.mutedForeground,
-        fontSize: 14,
-        fontWeight: '400',
+        fontSize: 13,
+        fontWeight: '500',
         maxWidth: '50%',
         textAlign: 'right',
     },
@@ -149,10 +152,11 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
     chevron: {
-        color: colors.mutedForeground,
-        fontSize: 18,
+        color: colors.primaryGreen,
+        fontSize: 20,
         fontWeight: '600',
         marginLeft: 2,
+        opacity: 0.5,
     },
 });
 

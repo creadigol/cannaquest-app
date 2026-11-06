@@ -34,6 +34,13 @@ import { getS3PresignedUrl, S3_BASE_URL } from '@/features/customer/api/s3Compli
 
 const S3_BUCKET_URL = S3_BASE_URL;
 
+function getCategoryString(cat: any): string {
+  if (!cat) return '';
+  if (typeof cat === 'string') return cat;
+  if (typeof cat === 'object') return cat.name || cat.title || cat.label || '';
+  return String(cat);
+}
+
 function getProductImageSource(product: Product): { uri: string } | any {
   const rawUrl = product.image_url ?? product.imageUrl ?? product.image;
   if (rawUrl && typeof rawUrl === 'string' && rawUrl.trim().length > 0) {
@@ -45,11 +52,12 @@ function getProductImageSource(product: Product): { uri: string } | any {
     return { uri: getS3PresignedUrl(`${S3_BUCKET_URL}/${cleanKey}`) };
   }
 
+  const categoryStr = getCategoryString(product.category);
+  const formStr = typeof product.form === 'string' ? product.form : '';
   const formKey = (
-    product.form ||
-    product.category ||
-    (product.isAddonDevice || product.is_addon_device ? 'device' : '') ||
-    ''
+    formStr ||
+    categoryStr ||
+    (product.isAddonDevice || product.is_addon_device ? 'device' : '')
   ).toLowerCase().trim();
 
   for (const [key, asset] of Object.entries(CATEGORY_IMAGES)) {
@@ -84,7 +92,13 @@ export function ProductDetailModal({
     0
   );
 
-  const isDevice = Boolean(product.isAddonDevice || product.is_addon_device || (product.category || '').toLowerCase().includes('device'));
+  const categoryName = getCategoryString(product.category);
+  const isDevice = Boolean(
+    product.isAddonDevice ||
+    product.is_addon_device ||
+    categoryName.toLowerCase().includes('device') ||
+    (typeof product.form === 'string' && product.form.toLowerCase().includes('device'))
+  );
 
   return (
     <Modal
@@ -239,7 +253,7 @@ export function ProductDetailModal({
             <View style={styles.specRow}>
               <Text style={styles.specLabel}>Form</Text>
               <Text style={styles.specValue}>
-                {product.form || product.category || (isDevice ? 'Device / Vaporiser' : 'Medication')}
+                {product.form || categoryName || (isDevice ? 'Device / Vaporiser' : 'Medication')}
               </Text>
             </View>
 

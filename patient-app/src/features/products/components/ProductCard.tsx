@@ -24,6 +24,13 @@ import { getS3PresignedUrl, S3_BASE_URL } from '@/features/customer/api/s3Compli
 
 const S3_BUCKET_URL = S3_BASE_URL;
 
+function getCategoryString(cat: any): string {
+  if (!cat) return '';
+  if (typeof cat === 'string') return cat;
+  if (typeof cat === 'object') return cat.name || cat.title || cat.label || '';
+  return String(cat);
+}
+
 function getProductImageSource(product: Product): { uri: string } | any | null {
   const rawUrl = product.image_url ?? product.imageUrl ?? product.image;
   if (rawUrl && typeof rawUrl === 'string' && rawUrl.trim().length > 0) {
@@ -36,7 +43,14 @@ function getProductImageSource(product: Product): { uri: string } | any | null {
     return { uri: getS3PresignedUrl(`${S3_BUCKET_URL}/${cleanKey}`) };
   }
 
-  const formKey = (product.form || product.category || (product.isAddonDevice || product.is_addon_device ? 'device' : '') || '').toLowerCase().trim();
+  const categoryStr = getCategoryString(product.category);
+  const formStr = typeof product.form === 'string' ? product.form : '';
+  const formKey = (
+    formStr ||
+    categoryStr ||
+    (product.isAddonDevice || product.is_addon_device ? 'device' : '')
+  ).toLowerCase().trim();
+
   for (const [key, asset] of Object.entries(CATEGORY_IMAGES)) {
     if (formKey.includes(key)) {
       return asset;

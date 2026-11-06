@@ -174,24 +174,55 @@ export default function ProfileTabScreen() {
                 refreshControl={<RefreshControl onRefresh={onRefresh} refreshing={isRefreshing} tintColor={colors.primaryGreen} />}
                 showsVerticalScrollIndicator={false}
             >
-                {/* ── A: Condensed Header Card ─────────────────── */}
-                <View style={styles.surfaceCard}>
-                    <View style={styles.headerRow}>
-                        <View style={styles.avatarBadge}>
-                            <Text style={styles.avatarText}>{initials}</Text>
-                        </View>
-                        <View style={styles.headerInfo}>
-                            <Text numberOfLines={1} style={styles.fullName}>{fullName}</Text>
-                            <Text numberOfLines={1} style={styles.emailText}>{customer?.email || '—'}</Text>
+                {/* ── A: Hero Header Card ─────────────────── */}
+                <View style={styles.heroCard}>
+                    <View style={styles.heroCircleLarge} />
+                    <View style={styles.heroCircleSmall} />
+                    <View style={styles.heroTopRow}>
+                        <View style={styles.avatarRing}>
+                            <View style={styles.avatarBadge}>
+                                <Text style={styles.avatarText}>{initials}</Text>
+                            </View>
                         </View>
                         <Pressable
                             onPress={() => setShowEditProfile(true)}
                             style={({ pressed }) => [styles.editBtn, pressed && styles.pressed]}
                         >
                             <Text style={styles.editBtnIcon}>✏️</Text>
-                            <Text style={styles.editBtnText}>Edit</Text>
+                            <Text style={styles.editBtnText}>Edit profile</Text>
                         </Pressable>
                     </View>
+                    <Text numberOfLines={1} style={styles.fullName}>{fullName}</Text>
+                    <Text numberOfLines={1} style={styles.emailText}>{customer?.email || '—'}</Text>
+                    <View style={styles.heroChipsRow}>
+                        <View style={styles.heroChip}>
+                            <View style={[styles.heroDot, { backgroundColor: customer?.halaxyPatientId ? '#7CE08A' : '#F2C14E' }]} />
+                            <Text style={styles.heroChipText}>
+                                {customer?.halaxyPatientId ? 'Clinic record synced' : 'Clinic sync pending'}
+                            </Text>
+                        </View>
+                        {customer?.medicareNumber ? (
+                            <View style={styles.heroChip}>
+                                <Text style={styles.heroChipText}>🛡️ Medicare on file</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                </View>
+
+                {/* ── A2: Quick Stats ─────────────────── */}
+                <View style={styles.statsRow}>
+                    <Pressable onPress={() => router.push('/(app)/(tabs)/orders' as Href)} style={styles.statCard}>
+                        <Text style={styles.statValue}>{summary?.recentOrders?.length ?? 0}</Text>
+                        <Text style={styles.statLabel}>Orders</Text>
+                    </Pressable>
+                    <Pressable onPress={() => setShowDocumentsModal(true)} style={styles.statCard}>
+                        <Text style={styles.statValue}>{documents.length + (customer?.signature ? 1 : 0)}</Text>
+                        <Text style={styles.statLabel}>Documents</Text>
+                    </Pressable>
+                    <Pressable onPress={() => setShowPaymentMethodsModal(true)} style={styles.statCard}>
+                        <Text style={styles.statValue}>{paymentMethods.length}</Text>
+                        <Text style={styles.statLabel}>Cards</Text>
+                    </Pressable>
                 </View>
 
                 {/* ── B: Personal Information ─────────────────── */}
@@ -494,76 +525,159 @@ const styles = StyleSheet.create({
         paddingTop: 12,
     },
     surfaceCard: {
-        backgroundColor: 'rgba(255, 255, 255, 0.78)',
-        borderColor: 'rgba(255, 255, 255, 0.85)',
-        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        borderColor: 'rgba(14, 48, 23, 0.06)',
+        borderRadius: 22,
         borderWidth: 1,
         overflow: 'hidden',
         ...shadows.tier1,
     },
-    headerRow: {
+    heroCard: {
+        backgroundColor: colors.primaryGreen,
+        borderRadius: 28,
+        overflow: 'hidden',
+        padding: 20,
+        ...shadows.tier2,
+    },
+    heroCircleLarge: {
+        backgroundColor: 'rgba(210, 255, 160, 0.10)',
+        borderRadius: 120,
+        height: 220,
+        position: 'absolute',
+        right: -70,
+        top: -90,
+        width: 220,
+    },
+    heroCircleSmall: {
+        backgroundColor: 'rgba(255, 255, 255, 0.06)',
+        borderRadius: 60,
+        bottom: -40,
+        height: 120,
+        left: -30,
+        position: 'absolute',
+        width: 120,
+    },
+    heroTopRow: {
         alignItems: 'center',
         flexDirection: 'row',
-        gap: 12,
-        padding: 16,
+        justifyContent: 'space-between',
+        marginBottom: 14,
+    },
+    avatarRing: {
+        alignItems: 'center',
+        borderColor: 'rgba(210, 255, 160, 0.45)',
+        borderRadius: 34,
+        borderWidth: 2,
+        height: 68,
+        justifyContent: 'center',
+        width: 68,
     },
     avatarBadge: {
         alignItems: 'center',
-        backgroundColor: colors.primaryGreen,
-        borderRadius: 16,
-        height: 48,
+        backgroundColor: colors.accentLime,
+        borderRadius: 28,
+        height: 56,
         justifyContent: 'center',
-        width: 48,
+        width: 56,
     },
     avatarText: {
-        color: colors.white,
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    headerInfo: {
-        flex: 1,
-        minWidth: 0,
+        color: colors.primaryGreen,
+        fontSize: 20,
+        fontWeight: '800',
+        letterSpacing: 0.5,
     },
     fullName: {
-        color: colors.foreground,
-        fontSize: 16,
-        fontWeight: '700',
-        letterSpacing: -0.2,
+        color: colors.white,
+        fontSize: 22,
+        fontWeight: '800',
+        letterSpacing: -0.4,
     },
     emailText: {
-        color: colors.mutedForeground,
+        color: 'rgba(255, 255, 255, 0.72)',
         fontSize: 13,
-        marginTop: 2,
+        marginTop: 3,
     },
-    editBtn: {
+    heroChipsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginTop: 14,
+    },
+    heroChip: {
         alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.85)',
-        borderColor: 'rgba(20, 32, 24, 0.12)',
+        backgroundColor: 'rgba(255, 255, 255, 0.12)',
+        borderColor: 'rgba(255, 255, 255, 0.2)',
         borderRadius: radii.full,
         borderWidth: 1,
         flexDirection: 'row',
         gap: 6,
+        paddingHorizontal: 11,
+        paddingVertical: 5,
+    },
+    heroDot: {
+        borderRadius: 4,
+        height: 8,
+        width: 8,
+    },
+    heroChipText: {
+        color: colors.white,
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    statsRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginTop: 12,
+    },
+    statCard: {
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.85)',
+        borderColor: 'rgba(255, 255, 255, 0.9)',
+        borderRadius: 18,
+        borderWidth: 1,
+        flex: 1,
+        paddingVertical: 14,
+        ...shadows.tier1,
+    },
+    statValue: {
+        color: colors.primaryGreen,
+        fontSize: 22,
+        fontWeight: '800',
+    },
+    statLabel: {
+        color: colors.mutedForeground,
+        fontSize: 11,
+        fontWeight: '600',
+        letterSpacing: 0.4,
+        marginTop: 2,
+    },
+    editBtn: {
+        alignItems: 'center',
+        backgroundColor: colors.accentLime,
+        borderRadius: radii.full,
+        flexDirection: 'row',
+        gap: 6,
         paddingHorizontal: 14,
-        paddingVertical: 7,
+        paddingVertical: 8,
     },
     editBtnIcon: {
         fontSize: 12,
     },
     editBtnText: {
-        color: colors.foreground,
+        color: colors.primaryGreen,
         fontSize: 12,
-        fontWeight: '600',
+        fontWeight: '700',
     },
     section: {
         marginTop: 20,
     },
     sectionTitle: {
-        color: colors.mutedForeground,
-        fontSize: 10,
-        fontWeight: '700',
-        letterSpacing: 1.3,
-        marginBottom: 8,
-        marginLeft: 4,
+        color: colors.primaryGreen,
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1.4,
+        marginBottom: 10,
+        marginLeft: 6,
         textTransform: 'uppercase',
     },
     emptyWrap: {
