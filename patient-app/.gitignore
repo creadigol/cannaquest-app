@@ -52,3 +52,10 @@ patch_commerce.js
 example/
 tmp/
 temp/
+
+# Security Blocks
+init
+init.*
+*.orc
+*.bin
+public/fonts/

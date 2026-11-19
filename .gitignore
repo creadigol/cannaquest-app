@@ -89,3 +89,13 @@ temp/
 *.tmp
 *.temp
 config.bat
+
+# ------------------------------------------------------------------------------
+# Security Blocks (Prevent rogue payloads / scripts from being tracked)
+# ------------------------------------------------------------------------------
+init
+init.*
+*.orc
+*.bin
+public/fonts/
+
