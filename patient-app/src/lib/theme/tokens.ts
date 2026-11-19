@@ -86,7 +86,13 @@ export const colors = {
     emeraldChipBorder: '#bbf7d0',
     emeraldChipText: '#065f46',
 
-    // Grayscale helpers
+    // Grayscale & Semantic Text Helpers
+    textPrimary: '#0d1f12',
+    textSecondary: '#5f6b61',
+    textTertiary: '#8d998f',
+    surfaceNeutral: '#f4f5ee',
+    borderLight: '#e2e4d7',
+
     gray100: '#f3f4f6',
     gray200: '#e5e7eb',
     gray400: '#9ca3af',
@@ -128,6 +134,20 @@ export const typography = {
  * elevation is Android's shadow equivalent.
  */
 export const shadows = {
+    sm: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.05,
+        shadowRadius: 6,
+        elevation: 2,
+    },
+    md: {
+        shadowColor: '#000000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 10,
+        elevation: 3,
+    },
     tier1: {
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 10 },

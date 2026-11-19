@@ -30,9 +30,10 @@ type Props = {
   scripts: OrderablePrescription[];
   onViewAll: () => void;
   onAddToCart: (rx: OrderablePrescription) => void;
+  onOpenSchedule?: () => void;
 };
 
-export function OrderableScriptsList({ scripts, onViewAll, onAddToCart }: Props) {
+export function OrderableScriptsList({ scripts, onViewAll, onAddToCart, onOpenSchedule }: Props) {
   const { cart } = useCart();
   if (scripts.length === 0) return null;
   const visible = scripts.slice(0, 3);
@@ -48,7 +49,14 @@ export function OrderableScriptsList({ scripts, onViewAll, onAddToCart }: Props)
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Text style={brandLabel}>Scripts Ready to Order</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={brandLabel}>Scripts Ready to Order</Text>
+          {onOpenSchedule && (
+            <Pressable onPress={onOpenSchedule} hitSlop={6} style={styles.scheduleBadge}>
+              <Text style={styles.scheduleBadgeText}>📅 Refill Schedule</Text>
+            </Pressable>
+          )}
+        </View>
         <Pressable onPress={onViewAll} hitSlop={8}>
           <Text style={styles.viewAll}>View All ({scripts.length})</Text>
         </Pressable>
@@ -139,6 +147,19 @@ const styles = StyleSheet.create({
   viewAll: {
     color: colors.emeraldChipText,
     fontSize: 12,
+    fontWeight: '700',
+  },
+  scheduleBadge: {
+    backgroundColor: '#ecfdf5',
+    borderColor: '#a7f3d0',
+    borderRadius: radii.full,
+    borderWidth: 1,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+  },
+  scheduleBadgeText: {
+    color: '#047857',
+    fontSize: 10.5,
     fontWeight: '700',
   },
   list: {

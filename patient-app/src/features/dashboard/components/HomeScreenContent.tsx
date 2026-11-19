@@ -1,17 +1,21 @@
 import { router, type Href } from 'expo-router';
-import { ActivityIndicator, Alert, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useCurrentCustomer } from '@/features/customer/hooks/useCurrentCustomer';
-import { colors, spacing } from '@/lib/theme/tokens';
+import { colors, radii, shadows, spacing } from '@/lib/theme/tokens';
 import { useCareJourney } from '../hooks/useCareJourney';
 import { useDashboardSummary } from '../hooks/useDashboardSummary';
 import { CareJourneyCard } from './CareJourneyCard';
 import { HeroCard } from './HeroCard';
+import { TicketUpdateBanner } from './TicketUpdateBanner';
 import { NextConsultationCard } from './NextConsultationCard';
 import { ActiveOrderTracker } from './ActiveOrderTracker';
 import { OrderableScriptsList } from './OrderableScriptsList';
 import { QuickAccessGrid } from './QuickAccessGrid';
 import { RecentOrdersList } from './RecentOrdersList';
+import { ConsumptionCalendarModal } from './ConsumptionCalendarModal';
 import { addToCart, useCart } from '@/features/cart';
+import { useSupportSummary } from '@/features/support/hooks/useSupport';
 
 function goToTab(path: string) {
   router.push(path as Href);
@@ -35,6 +39,8 @@ export function HomeScreenContent() {
   const summary = useDashboardSummary();
   const careJourney = useCareJourney();
   const customer = useCurrentCustomer();
+  const supportSummary = useSupportSummary();
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
 
   // Customer load failure doesn't block the rest of Home — it only loses
   // the personalised greeting, which HeroCard already falls back for.
@@ -46,6 +52,7 @@ export function HomeScreenContent() {
     void summary.refetch();
     void careJourney.refetch();
     void customer.refetch();
+    void supportSummary.refetch();
   };
 
   if (isLoading) {
@@ -78,6 +85,16 @@ export function HomeScreenContent() {
         journey={journey}
         questionnaireCompleted={data.questionnaireCompleted}
         activePrescriptionsCount={data.activePrescriptionsCount}
+        unreadCount={supportSummary.data?.unreadCount || 0}
+        onNotificationPress={() => {
+          const firstUnread =
+            supportSummary.data?.items?.find((t) => t.unread) ||
+            supportSummary.data?.items?.[0];
+          router.push({
+            pathname: '/(app)/support',
+            params: firstUnread ? { ticketId: firstUnread.id } : {},
+          } as any);
+        }}
         onCompleteForm={() => {
           if (journey?.currentStep?.ctaRoute) {
             goToTab(resolveCtaRoute(journey.currentStep.ctaRoute));
@@ -89,6 +106,27 @@ export function HomeScreenContent() {
         onViewScripts={() => goToTab('/(app)/(tabs)/scripts')}
       />
 
+      {/* Classy, Sassy, Animated Live Ticket Update Banner on Dashboard */}
+      {Boolean(supportSummary.data?.unreadCount && supportSummary.data.unreadCount > 0) && (
+        <TicketUpdateBanner
+          unreadCount={supportSummary.data?.unreadCount || 0}
+          ticket={
+            supportSummary.data?.items?.find((t) => t.unread) ||
+            supportSummary.data?.items?.[0] ||
+            null
+          }
+          onPress={() => {
+            const firstUnread =
+              supportSummary.data?.items?.find((t) => t.unread) ||
+              supportSummary.data?.items?.[0];
+            router.push({
+              pathname: '/(app)/support',
+              params: firstUnread ? { ticketId: firstUnread.id } : {},
+            } as any);
+          }}
+        />
+      )}
+
       {journey && journey.visible ? <CareJourneyCard journey={journey} onStepPress={(route) => goToTab(resolveCtaRoute(route))} /> : null}
 
       <QuickAccessGrid
@@ -96,7 +134,18 @@ export function HomeScreenContent() {
           { key: 'scripts', label: 'Scripts', icon: '📄', onPress: () => goToTab('/(app)/(tabs)/scripts') },
           { key: 'consults', label: 'Consults', icon: '🩺', onPress: () => goToTab('/(app)/(tabs)/consults') },
           { key: 'orders', label: 'Orders', icon: '📦', onPress: () => goToTab('/(app)/(tabs)/orders') },
-          { key: 'catalog', label: 'Products', icon: '🛍️', onPress: () => goToTab('/(app)/(tabs)/products') },
+          {
+            key: 'support',
+            label: 'Support',
+            icon: '🎫',
+            badge:
+              supportSummary.data?.unreadCount && supportSummary.data.unreadCount > 0
+                ? supportSummary.data.unreadCount > 9
+                  ? '9+'
+                  : supportSummary.data.unreadCount
+                : undefined,
+            onPress: () => router.push('/(app)/support' as any),
+          },
         ]}
       />
 
@@ -128,10 +177,17 @@ export function HomeScreenContent() {
           }
         }}
         onViewAll={() => goToTab('/(app)/(tabs)/scripts')}
+        onOpenSchedule={() => setShowCalendarModal(true)}
         scripts={data.orderablePrescriptions}
       />
 
       <RecentOrdersList activeOrdersCount={data.activeOrdersCount} orders={data.recentOrders} />
+
+      {/* Consumption / Refill Schedule Modal */}
+      <ConsumptionCalendarModal
+        visible={showCalendarModal}
+        onClose={() => setShowCalendarModal(false)}
+      />
     </ScrollView>
   );
 }

@@ -35,12 +35,15 @@ import { PaymentMethodsModal } from '@/features/customer/components/PaymentMetho
 import { ProfileRow, type StatusPillColor } from '@/features/customer/components/ProfileRow';
 import { SignatureModal } from '@/features/customer/components/SignatureModal';
 import { SignatureDisplay } from '@/features/customer/components/SignatureDisplay';
+import { SupportCenterModal } from '@/features/support/components/SupportCenterModal';
+import { useSupportSummary } from '@/features/support/hooks/useSupport';
 
 export default function ProfileTabScreen() {
     const customerQuery = useCurrentCustomer();
     const dashboardQuery = useDashboardSummary();
     const documentsQuery = useCustomerDocuments();
     const paymentMethodsQuery = useCustomerPaymentMethods();
+    const supportSummaryQuery = useSupportSummary();
     const logout = useLogout();
 
     const updateProfile = useUpdateCustomerProfile();
@@ -55,6 +58,7 @@ export default function ProfileTabScreen() {
     const [showPasswordModal, setShowPasswordModal] = useState(false);
     const [showDocumentsModal, setShowDocumentsModal] = useState(false);
     const [showPaymentMethodsModal, setShowPaymentMethodsModal] = useState(false);
+    const [showSupportModal, setShowSupportModal] = useState(false);
     const [showLogoutModal, setShowLogoutModal] = useState(false);
 
     const onRefresh = () => {
@@ -324,7 +328,26 @@ export default function ProfileTabScreen() {
                     </View>
                 </View>
 
-                {/* ── E: Security ─────────────────────────────── */}
+                {/* ── E: Support & Security ──────────────────── */}
+                <View style={styles.section}>
+                    <Text style={styles.sectionTitle}>Support & Help</Text>
+                    <View style={styles.surfaceCard}>
+                        <ProfileRow
+                            icon="🎫"
+                            label="Support Tickets"
+                            value={
+                                supportSummaryQuery.data?.unreadCount && supportSummaryQuery.data.unreadCount > 0
+                                    ? `${supportSummaryQuery.data.unreadCount} unread`
+                                    : undefined
+                            }
+                            pillColor="emerald"
+                            last
+                            onPress={() => router.push('/(app)/support' as any)}
+                        />
+                    </View>
+                </View>
+
+                {/* ── Security ───────────────────────────────── */}
                 <View style={styles.section}>
                     <Text style={styles.sectionTitle}>Security</Text>
                     <View style={styles.surfaceCard}>
@@ -424,6 +447,12 @@ export default function ProfileTabScreen() {
                     </Pressable>
                 </View>
             </ScrollView>
+
+            {/* ── Support Center Modal ────────────────────── */}
+            <SupportCenterModal
+                visible={showSupportModal}
+                onClose={() => setShowSupportModal(false)}
+            />
 
             {/* ── Sign Out Confirmation Modal ──────────────── */}
             <Modal animationType="fade" transparent visible={showLogoutModal}>

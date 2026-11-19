@@ -16,6 +16,8 @@ type Props = {
   journey?: CareJourney | null;
   questionnaireCompleted?: boolean;
   activePrescriptionsCount?: number;
+  unreadCount?: number;
+  onNotificationPress?: () => void;
   onCompleteForm?: () => void;
   onBookConsultation: () => void;
   onViewScripts: () => void;
@@ -114,11 +116,113 @@ function AnimatedGhostText({ messages }: { messages: string[] }) {
   );
 }
 
+function AnimatedBellButton({
+  unreadCount = 0,
+  onPress,
+}: {
+  unreadCount?: number;
+  onPress?: () => void;
+}) {
+  const chimeAnim = useRef(new Animated.Value(0)).current;
+  const pulseAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (unreadCount <= 0) return;
+
+    // Pulse animation (sonar ripple)
+    const pulseLoop = Animated.loop(
+      Animated.timing(pulseAnim, {
+        toValue: 1,
+        duration: 1800,
+        useNativeDriver: true,
+      })
+    );
+    pulseLoop.start();
+
+    // Bell swing chime sequence
+    const swingLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(chimeAnim, { toValue: -15, duration: 80, useNativeDriver: true }),
+        Animated.timing(chimeAnim, { toValue: 15, duration: 100, useNativeDriver: true }),
+        Animated.timing(chimeAnim, { toValue: -10, duration: 90, useNativeDriver: true }),
+        Animated.timing(chimeAnim, { toValue: 10, duration: 90, useNativeDriver: true }),
+        Animated.timing(chimeAnim, { toValue: -4, duration: 70, useNativeDriver: true }),
+        Animated.timing(chimeAnim, { toValue: 0, duration: 70, useNativeDriver: true }),
+        Animated.delay(3000),
+      ])
+    );
+    swingLoop.start();
+
+    return () => {
+      pulseLoop.stop();
+      swingLoop.stop();
+    };
+  }, [unreadCount, chimeAnim, pulseAnim]);
+
+  const rotation = chimeAnim.interpolate({
+    inputRange: [-18, 18],
+    outputRange: ['-18deg', '18deg'],
+  });
+
+  const pulseScale = pulseAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.8, 1.8],
+  });
+
+  const pulseOpacity = pulseAnim.interpolate({
+    inputRange: [0, 0.4, 1],
+    outputRange: [0.8, 0.4, 0],
+  });
+
+  return (
+    <Pressable
+      onPress={onPress}
+      hitSlop={8}
+      style={({ pressed }) => [
+        styles.bellButton,
+        unreadCount > 0 && styles.bellButtonActive,
+        pressed && styles.pressed,
+      ]}
+    >
+      {unreadCount > 0 && (
+        <Animated.View
+          style={[
+            styles.bellPulseRing,
+            {
+              transform: [{ scale: pulseScale }],
+              opacity: pulseOpacity,
+            },
+          ]}
+        />
+      )}
+
+      <Animated.Text
+        style={[
+          styles.bellIconText,
+          unreadCount > 0 && { transform: [{ rotate: rotation }] },
+        ]}
+      >
+        🔔
+      </Animated.Text>
+
+      {unreadCount > 0 && (
+        <View style={styles.bellBadge}>
+          <Text style={styles.bellBadgeText}>
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </Text>
+        </View>
+      )}
+    </Pressable>
+  );
+}
+
 export function HeroCard({
   firstName,
   journey,
   questionnaireCompleted,
   activePrescriptionsCount = 0,
+  unreadCount = 0,
+  onNotificationPress,
   onCompleteForm,
   onBookConsultation,
   onViewScripts,
@@ -212,9 +316,15 @@ export function HeroCard({
           <Image source={CQ_WATERMARK} resizeMode="contain" style={styles.watermarkImage} />
         </View>
 
-        {/* CannaQuest Glass Brand Badge on top right */}
-        <View style={styles.brandBadge}>
-          <Image source={WORDMARK_LOGO} resizeMode="contain" style={styles.brandLogo} />
+        {/* Top Right Actions: Brand Badge + Classy Animated Bell */}
+        <View style={styles.topRightActions}>
+          <View style={styles.brandBadge}>
+            <Image source={WORDMARK_LOGO} resizeMode="contain" style={styles.brandLogo} />
+          </View>
+          <AnimatedBellButton
+            unreadCount={unreadCount}
+            onPress={onNotificationPress}
+          />
         </View>
 
         {/* Content Column */}
@@ -289,22 +399,91 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
-  brandBadge: {
+  topRightActions: {
     position: 'absolute',
     top: 14,
     right: 14,
-    backgroundColor: 'rgba(255, 255, 255, 0.65)',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    zIndex: 10,
+  },
+  brandBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.85)',
+    borderColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: radii.full,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 5,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1.5 },
     shadowOpacity: 0.08,
     shadowRadius: 5,
     elevation: 2,
-    zIndex: 10,
+  },
+  bellButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.9)',
+    borderRadius: radii.full,
+    height: 32,
+    width: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.08,
+    shadowRadius: 5,
+    elevation: 2,
+  },
+  bellButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    borderColor: '#34d399',
+    shadowColor: '#10b981',
+    shadowOffset: { width: 0, height: 1.5 },
+    shadowOpacity: 0.45,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  bellPulseRing: {
+    position: 'absolute',
+    height: 28,
+    width: 28,
+    borderRadius: 14,
+    backgroundColor: 'rgba(16, 185, 129, 0.35)',
+    borderWidth: 1,
+    borderColor: 'rgba(52, 211, 153, 0.6)',
+  },
+  bellIconText: {
+    fontSize: 15,
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    backgroundColor: '#dc2626',
+    borderRadius: 9,
+    minWidth: 17,
+    height: 17,
+    paddingHorizontal: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: '#ffffff',
+    shadowColor: '#dc2626',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.6,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  bellBadgeText: {
+    color: '#ffffff',
+    fontSize: 9,
+    fontWeight: '800',
   },
   brandLogo: {
     width: 92,

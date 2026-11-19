@@ -1,15 +1,3 @@
-/**
- * Confirmed against real responses from:
- *   GET /patient/v1/dashboard/summary
- *   GET /patient/v1/dashboard/care-journey
- *   GET /patient/v1/dashboard/consumption-calendar
- *   POST /patient/v1/dashboard/care-journey/dismiss
- *
- * Two fields are still unconfirmed because the sample responses had empty
- * arrays for them — see the ORDERABLE PRESCRIPTION ITEM SHAPE and RECENT
- * ORDER ITEM SHAPE notes below. Everything else here is exact.
- */
-
 export type CareJourneyStep = {
   key: string;
   number: number;
@@ -30,12 +18,6 @@ export type CareJourney = {
   dismissible: boolean;
 };
 
-/**
- * UNCONFIRMED SHAPE — the sample response had an empty orderablePrescriptions
- * array, so only the key name is confirmed, not the item fields. This is a
- * best guess based on the prescriptions tab's likely shape; correct it once
- * a patient with an orderable script hits this endpoint.
- */
 export type OrderablePrescription = {
   id: string;
   prescriptionId?: string;
@@ -56,9 +38,6 @@ export type OrderablePrescription = {
   imageUrl?: string | null;
 };
 
-/**
- * UNCONFIRMED SHAPE — recentOrders was empty in the sample. Best guess only.
- */
 export type RecentOrder = {
   id: string | number;
   uuid?: string;
@@ -108,7 +87,17 @@ export type DashboardSummary = {
   activeOrders?: ActiveOrder[];
 };
 
-export type ConsumptionCalendarEntry = unknown; // unconfirmed — entries was empty in sample
+export type ConsumptionCalendarEntry = {
+  prescriptionId: number | string;
+  productId: number | string | null;
+  productName: string;
+  productForm?: string | null;
+  nextAvailableDate?: string | null;
+  daysUntilAvailable?: number | null;
+  repeatsRemaining: number;
+  availableNow: boolean;
+  blockedBy?: 'expired' | 'repeats_used' | 'awaiting_token' | 'interval' | 'awaiting_approval' | null;
+};
 
 export type ConsumptionCalendar = {
   entries: ConsumptionCalendarEntry[];
