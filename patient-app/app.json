@@ -29,6 +29,7 @@
     },
     "plugins": [
       "expo-router",
+      "./plugins/with-quoted-ios-bundle-script",
       [
         "expo-splash-screen",
         {

@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/api/client';
 import { ApiRequestError, normalizeApiError } from '@/lib/api/api-error';
 import type { ApiResponse } from '@/features/auth/api/auth.types';
+import { medicareExpiryForApi } from '../utils/medicare-expiry';
 import type {
     ComplianceDocument,
     Customer,
@@ -40,7 +41,10 @@ export async function fetchCurrentCustomer(): Promise<Customer | null> {
 
 export async function updateCustomerProfile(data: UpdateProfileDto): Promise<Customer | null> {
     try {
-        const response = await apiClient.patch<ApiResponse<Customer>>('/patient/v1/customers/me/profile', data);
+        const payload = data.medicareExpiry === undefined
+            ? data
+            : { ...data, medicareExpiry: medicareExpiryForApi(data.medicareExpiry) };
+        const response = await apiClient.patch<ApiResponse<Customer>>('/patient/v1/customers/me/profile', payload);
         if (!response.data.success) {
             throw new ApiRequestError({
                 kind: response.data.statusCode === 401 ? 'invalid_credentials' : 'unknown',

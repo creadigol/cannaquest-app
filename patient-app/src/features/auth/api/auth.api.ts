@@ -72,17 +72,7 @@ async function post<TResponse, TBody>(url: string, body: TBody) {
     }
     return response.data;
   } catch (error) {
-    const apiError = normalizeApiError(error);
-    if (__DEV__) {
-      console.error(`[Auth API] ${url}`, {
-        kind: apiError.kind,
-        status: apiError.status,
-        message: apiError.message,
-        responseData: apiError.responseData,
-        correlationId: apiError.correlationId,
-      });
-    }
-    throw apiError;
+    throw normalizeApiError(error);
   }
 }
 
@@ -92,15 +82,8 @@ export async function register(payload: RegisterPayload) {
 }
 
 export async function login(payload: LoginPayload): Promise<LoginResult> {
-  console.log(`\n========================================`);
-  console.log(`[LOGIN REQUEST] Channel: ${payload.channel.toUpperCase()}, Email: ${payload.email}`);
   const response = await post<unknown, LoginPayload>('/patient/v1/auth/login', payload);
   const data = payloadOf(response) as Record<string, unknown> | null;
-  console.log(`[LOGIN RESPONSE]:`, JSON.stringify(data, null, 2));
-  if (data?.code || data?.otp || data?.verification_code) {
-    console.log(`\n>>> [OTP CODE FROM LOGIN]: ${data.code || data.otp || data.verification_code} <<<\n`);
-  }
-  console.log(`========================================\n`);
 
   // 1. Check if user is exempt from OTP or direct token returned
   const isOtpExempt =
@@ -129,8 +112,8 @@ export async function login(payload: LoginPayload): Promise<LoginResult> {
             requiresOtp: false,
             session,
           };
-        } catch (e) {
-          if (__DEV__) console.warn('[Auth API] Auto-verification for exempt account failed:', e);
+        } catch {
+          // Continue with the standard OTP flow if automatic verification fails.
         }
       }
     }
@@ -165,8 +148,8 @@ export async function login(payload: LoginPayload): Promise<LoginResult> {
           channel: 'sms',
           phone: payload.phone,
         });
-      } catch (err) {
-        if (__DEV__) console.warn('[Auth API] Failed to update phone via resendOtp:', err);
+      } catch {
+        // Keep the OTP session available so the patient can retry sending the code.
       }
     }
 
@@ -201,12 +184,8 @@ export async function login(payload: LoginPayload): Promise<LoginResult> {
 }
 
 export async function verifyOtp(payload: VerifyOtpPayload) {
-  if (__DEV__) console.log('[Auth API] Verifying OTP with payload:', payload);
   const response = await post<unknown, VerifyOtpPayload>('/patient/v1/auth/otp/verify', payload);
-  if (__DEV__) console.log('[Auth API] Verify OTP response raw:', response);
-  const session = readSession(payloadOf(response));
-  if (__DEV__) console.log('[Auth API] Verify OTP session parsed:', session);
-  return session;
+  return readSession(payloadOf(response));
 }
 
 export async function refresh(payload: RefreshPayload) {
@@ -225,8 +204,7 @@ export async function getOtpDestination(otpSessionId: string): Promise<{ email?:
       ...data,
       phone,
     };
-  } catch (err) {
-    if (__DEV__) console.warn('[Auth API] Failed to fetch OTP destination:', err);
+  } catch {
     return null;
   }
 }
@@ -240,17 +218,7 @@ export async function resendOtp(payload: { otpSessionId: string; channel: 'email
     body.phone = payload.phone;
   }
 
-  console.log(`\n========================================`);
-  console.log(`[OTP RESEND REQUEST] Channel: ${payload.channel.toUpperCase()}`);
-  console.log(`Payload:`, body);
-
-  const response = await post<any, typeof body>('/patient/v1/auth/otp/resend', body);
-
-  console.log(`[OTP RESEND RESPONSE]:`, JSON.stringify(response, null, 2));
-  if (response?.data?.code || response?.data?.otp || response?.data?.verification_code) {
-    console.log(`\n>>> [OTP CODE RECEIVED FROM API]: ${response.data.code || response.data.otp || response.data.verification_code} <<<\n`);
-  }
-  console.log(`========================================\n`);
+  await post<unknown, typeof body>('/patient/v1/auth/otp/resend', body);
 }
 
 export async function forgotPassword(email: string): Promise<void> {
@@ -260,5 +228,4 @@ export async function forgotPassword(email: string): Promise<void> {
 export async function logout(payload: LogoutPayload) {
   await post<unknown, LogoutPayload>('/patient/v1/auth/logout', payload);
 }
-
 

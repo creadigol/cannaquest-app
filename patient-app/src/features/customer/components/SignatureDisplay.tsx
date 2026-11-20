@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Image } from 'expo-image';
 import {
     ActivityIndicator,
-    Image,
     ImageStyle,
     Linking,
     Modal,
@@ -14,7 +14,7 @@ import {
     ViewStyle,
 } from 'react-native';
 import { colors, radii } from '@/lib/theme/tokens';
-import { AWS_CONFIG, getS3PresignedUrl, S3_BASE_URL } from '../api/s3ComplianceService';
+import { AWS_CONFIG, getS3PresignedUrl } from '../api/s3ComplianceService';
 
 type Props = {
     signature: string | null | undefined;
@@ -69,7 +69,6 @@ export function SignatureDisplay({
     allowEnlarge = true,
 }: Props) {
     const [isEnlarged, setIsEnlarged] = useState(false);
-    const [imgLoading, setImgLoading] = useState(false);
 
     if (!signature) {
         return (
@@ -254,29 +253,15 @@ export function SignatureDisplay({
         );
     }
 
-    // Memoize the presigned URL calculation so it doesn't regenerate a new timestamp and force reload on every re-render
-    const displayUri = React.useMemo(() => {
-        if (!signature) return '';
-        if (signature.startsWith('file://')) return signature;
-        if (!signature.startsWith('data:') && !signature.startsWith('http://') && !signature.startsWith('https://')) {
-            const cleanKey = signature.replace(/^\/+/, '');
-            return getS3PresignedUrl(`${S3_BASE_URL}/${cleanKey}`);
-        }
-        if (signature.includes('cannaquest-storage.s3') || signature.includes(AWS_CONFIG.host)) {
-            return getS3PresignedUrl(signature);
-        }
-        return signature;
-    }, [signature]);
-
     // PDF signatures: open in the device viewer
-    const isPdf = signature.startsWith('data:application/pdf') || /\.pdf(\?|$)/i.test(displayUri);
+    const isPdf = /\.pdf(\?|$)/i.test(signature);
     if (isPdf) {
         return (
             <View style={[styles.container, style]}>
                 <Text
                     style={styles.pdfLink}
                     onPress={() => {
-                        Linking.openURL(displayUri).catch(() => undefined);
+                        Linking.openURL(resolveSignatureUri(signature)).catch(() => undefined);
                     }}
                 >
                     View PDF signature
@@ -285,30 +270,75 @@ export function SignatureDisplay({
         );
     }
 
+    // Keep image-only hooks in a child so changing from an uploaded image to a
+    // drawn / typed signature never changes this component's hook order.
+    return <SignatureImage key={signature} signature={signature} style={style} imageStyle={imageStyle} allowEnlarge={allowEnlarge} />;
+}
+
+function resolveSignatureUri(signature: string): string {
+    const canSign = AWS_CONFIG.accessKeyId && AWS_CONFIG.secretAccessKey && AWS_CONFIG.region && AWS_CONFIG.bucket;
+    // A local build without signing configuration must preserve the URL from
+    // the server instead of replacing it with an invalid storage endpoint.
+    if (canSign && (signature.includes('cannaquest-storage.s3') || signature.includes(AWS_CONFIG.host))) {
+        return getS3PresignedUrl(signature);
+    }
+    return signature;
+}
+
+function SignatureImage({ signature, style, imageStyle, allowEnlarge }: Props & { signature: string }) {
+    const [isEnlarged, setIsEnlarged] = useState(false);
+    const [attempt, setAttempt] = useState(0);
+    const [loadState, setLoadState] = useState<'loading' | 'ready' | 'error'>('loading');
+    const [displayUri, setDisplayUri] = useState(() => resolveSignatureUri(signature));
+    const source = useMemo(() => ({ uri: displayUri }), [displayUri]);
+
+    useEffect(() => {
+        if (loadState !== 'loading') return;
+        const timeout = setTimeout(() => setLoadState('error'), 15_000);
+        return () => clearTimeout(timeout);
+    }, [loadState]);
+
+    if (loadState === 'error') {
+        return (
+            <View style={[styles.container, style]}>
+                <Text style={styles.fallbackText}>Unable to load signature preview.</Text>
+                <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                        setDisplayUri(resolveSignatureUri(signature));
+                        setAttempt(value => value + 1);
+                        setIsEnlarged(false);
+                        setLoadState('loading');
+                    }}
+                    style={styles.retryButton}
+                >
+                    <Text style={styles.pdfLink}>Retry</Text>
+                </Pressable>
+            </View>
+        );
+    }
+
     return (
         <>
             <Pressable
-                disabled={!allowEnlarge}
+                disabled={!allowEnlarge || loadState !== 'ready'}
                 onPress={() => setIsEnlarged(true)}
                 style={[styles.container, style]}
             >
                 <Image
-                    onError={(e) => {
-                        console.warn('[SignatureDisplay] Image load failed for URI:', displayUri, e.nativeEvent?.error);
-                        setImgLoading(false);
-                    }}
-                    onLoadEnd={() => setImgLoading(false)}
-                    onLoadStart={() => setImgLoading(true)}
-                    resizeMode="contain"
-                    source={{ uri: displayUri }}
+                    key={attempt}
+                    onError={() => setLoadState('error')}
+                    onLoad={() => setLoadState('ready')}
+                    contentFit="contain"
+                    source={source}
                     style={[styles.image, imageStyle]}
                 />
-                {imgLoading && (
+                {loadState === 'loading' && (
                     <View style={[StyleSheet.absoluteFill, styles.loadingOverlay]}>
                         <ActivityIndicator color={colors.primaryGreen} size="small" />
                     </View>
                 )}
-                {allowEnlarge && !imgLoading && (
+                {allowEnlarge && loadState === 'ready' && (
                     <View style={styles.magnifyPill}>
                         <Text style={styles.magnifyPillText}>🔍 Tap to view</Text>
                     </View>
@@ -327,8 +357,9 @@ export function SignatureDisplay({
                             </View>
                             <View style={styles.modalImageContainer}>
                                 <Image
-                                    resizeMode="contain"
-                                    source={{ uri: displayUri }}
+                                    contentFit="contain"
+                                    source={source}
+                                    onError={() => setLoadState('error')}
                                     style={styles.enlargedImage}
                                 />
                             </View>
@@ -351,6 +382,12 @@ const styles = StyleSheet.create({
     loadingOverlay: {
         alignItems: 'center',
         justifyContent: 'center',
+    },
+    retryButton: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        minHeight: 44,
+        minWidth: 64,
     },
     image: {
         height: 70,

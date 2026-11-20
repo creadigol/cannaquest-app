@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { colors, radii, shadows } from '@/lib/theme/tokens';
 import type { Customer, UpdateProfileDto } from '../api/customer.types';
+import { formatMedicareExpiry, isValidMedicareExpiry, MEDICARE_EXPIRY_ERROR } from '../utils/medicare-expiry';
 
 type Props = {
     visible: boolean;
@@ -111,6 +112,11 @@ export function EditProfileModal({ visible, customer, onClose, onSave }: Props) 
             formattedIsoDob = dobClean;
         }
 
+        if (medicareExpiry.trim() && !isValidMedicareExpiry(medicareExpiry)) {
+            setError(MEDICARE_EXPIRY_ERROR);
+            return;
+        }
+
         try {
             setError(null);
             setIsSaving(true);
@@ -127,7 +133,9 @@ export function EditProfileModal({ visible, customer, onClose, onSave }: Props) 
             onClose();
         } catch (err: unknown) {
             let message = err instanceof Error ? err.message : 'Failed to update personal details.';
-            if (message.includes('ISO 8601') || message.includes('dateOfBirth')) {
+            if (message.includes('medicareExpiry')) {
+                message = MEDICARE_EXPIRY_ERROR;
+            } else if (message.includes('dateOfBirth')) {
                 message = 'Please enter a valid date of birth (YYYY-MM-DD).';
             }
             if (message.includes('phone')) {
@@ -256,7 +264,7 @@ export function EditProfileModal({ visible, customer, onClose, onSave }: Props) 
                                     placeholder="01/2028"
                                     placeholderTextColor={colors.gray400}
                                     style={styles.input}
-                                    value={medicareExpiry}
+                                    value={formatMedicareExpiry(medicareExpiry)}
                                 />
                             </View>
                         </View>

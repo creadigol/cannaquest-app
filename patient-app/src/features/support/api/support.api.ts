@@ -12,6 +12,11 @@ import type {
     TicketListing,
 } from './support.types';
 
+// Optional runtime fallback; this declaration adds no Node dependency or polyfill.
+declare const Buffer: {
+    from(value: string, encoding: 'base64'): { toString(encoding: 'binary'): string };
+} | undefined;
+
 // Cache active context header token to pass with support requests
 let activeContextHeader: string | null = null;
 

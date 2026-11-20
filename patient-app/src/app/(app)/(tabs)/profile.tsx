@@ -37,6 +37,7 @@ import { SignatureModal } from '@/features/customer/components/SignatureModal';
 import { SignatureDisplay } from '@/features/customer/components/SignatureDisplay';
 import { SupportCenterModal } from '@/features/support/components/SupportCenterModal';
 import { useSupportSummary } from '@/features/support/hooks/useSupport';
+import { formatMedicareExpiry } from '@/features/customer/utils/medicare-expiry';
 
 export default function ProfileTabScreen() {
     const customerQuery = useCurrentCustomer();
@@ -236,7 +237,7 @@ export default function ProfileTabScreen() {
                         <ProfileRow icon="📞" label="Phone" value={customer?.phone || '—'} />
                         <ProfileRow icon="📅" label="Date of Birth" value={formattedDob} />
                         <ProfileRow icon="🛡️" label="Medicare" value={medicareStr} />
-                        <ProfileRow icon="⏱️" label="Medicare Expiry" value={customer?.medicareExpiry || '—'} />
+                        <ProfileRow icon="⏱️" label="Medicare Expiry" value={formatMedicareExpiry(customer?.medicareExpiry) || '—'} />
                         <ProfileRow
                             icon="🏥"
                             label="Halaxy Patient ID"

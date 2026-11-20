@@ -19,7 +19,9 @@ export function LoginForm() {
   const mutation = useLogin();
   const apiError = mutation.error instanceof ApiRequestError ? mutation.error : undefined;
   const invalidCredentials = apiError?.kind === 'invalid_credentials' ? apiError.message : undefined;
-  const generalError = apiError && apiError.kind !== 'invalid_credentials' ? apiError.message : undefined;
+  const generalError = apiError
+    ? apiError.kind !== 'invalid_credentials' ? apiError.message : undefined
+    : mutation.error ? 'Sign-in could not be completed. Please try again.' : undefined;
   const [remember, setRemember] = useState(true);
   const [channel, setChannel] = useState<AuthChannel>('email');
 
