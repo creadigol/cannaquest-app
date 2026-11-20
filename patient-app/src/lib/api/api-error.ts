@@ -48,6 +48,8 @@ type ErrorPayload = {
 };
 
 export function normalizeApiError(error: unknown): ApiRequestError {
+  if (error instanceof ApiRequestError) return error;
+
   if (!isAxiosError<ErrorPayload>(error)) {
     return new ApiRequestError({
       kind: 'unknown',

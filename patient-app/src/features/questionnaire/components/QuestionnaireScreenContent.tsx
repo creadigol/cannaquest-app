@@ -29,7 +29,7 @@ import {
     updateCustomerProfile,
 } from '@/features/customer/api/customer.api';
 import { QuestionnaireProgressHeader } from './QuestionnaireProgressHeader';
-import { CustomerInfoStep } from './CustomerInfoStep';
+import { CustomerInfoForm } from './CustomerInfoForm';
 import { QuestionRenderer } from './QuestionRenderer';
 import { IneligibleScreen } from './IneligibleScreen';
 import { PrivacyConsentStep } from './PrivacyConsentStep';
@@ -516,7 +516,7 @@ export function QuestionnaireScreenContent() {
                 />
             ) : currentStep === 0 ? (
                 /* Step 0: General Info */
-                <CustomerInfoStep
+                <CustomerInfoForm
                     initialInfo={customerInfo}
                     onSaveAndContinue={handleSaveCustomerInfo}
                     isSubmitting={isSaving}

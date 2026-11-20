@@ -1,3 +1,5 @@
+import { isValidMedicareExpiry } from '@/features/customer/utils/medicare-expiry';
+
 const WEIGHTS = [1, 3, 7, 9, 1, 3, 7, 9];
 
 /**
@@ -52,10 +54,10 @@ export function validateMedicareIrn(irn: string): boolean {
 }
 
 /**
- * Validates Medicare Expiry (MM/YYYY)
+ * Validates user-entered MM/YYYY and existing ISO dates returned by the API.
  */
 export function validateMedicareExpiry(expiry: string): boolean {
-    return /^(0[1-9]|1[0-2])\/\d{4}$/.test(expiry.trim());
+    return isValidMedicareExpiry(expiry);
 }
 
 /**
